@@ -91,7 +91,7 @@ begin
                     o_we <= '0';
                     o_data <= eight_bit_zero;
                     -- stato
-                    current_state <= reset_state;
+                    current_state <= reset_state;   -- Dav: è necessaria? non è implicito nel case?
                     -- indirizzi a 0
                     o_address <= sixteen_bit_zero;
                     program_counter <= sixteen_bit_zero;
@@ -106,7 +106,7 @@ begin
                     new_value <= eight_bit_zero;
                     
                     if (i_start = '1') then
-                        o_en <= '1'; -- alzo segnale enable
+                        o_en <= '1'; -- alzo segnale enable -- Dav: dovrebbe essere S1 ad occuparsi di alzare en no?
                         current_state <= S1;
                     end if;
                 
