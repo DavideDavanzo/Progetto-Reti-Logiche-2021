@@ -143,6 +143,7 @@ begin
             when S13 =>                 -- stato finale in attesa di nuovo start
                 if i_start = '1' then
                     next_state <= S1;   -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
+                end if;
         end case;
     end process;
             
