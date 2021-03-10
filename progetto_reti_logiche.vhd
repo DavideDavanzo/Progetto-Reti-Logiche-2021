@@ -58,10 +58,11 @@ end progetto_reti_logiche;
 
 architecture Behavioral of progetto_reti_logiche is
     
-    type S is (reset_state, S1, S2, S3, S4, S5, S6, S7, S8, 
+    type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
                S9, S10, S11, S12, S13);
     
     signal current_state: S; -- stato corrente
+    signal next_state: S; -- stato successivo
     signal program_counter: std_logic_vector(15 downto 0); -- indirizzo attuale
     signal dimension: std_logic_vector(15 downto 0); -- dimensione
     signal max: std_logic_vector(7 downto 0); -- massimo
@@ -74,53 +75,65 @@ architecture Behavioral of progetto_reti_logiche is
 
 begin
 
-    UNIQUE_PROCESS: process(i_clk)
+    process(i_clk, i_res)
     begin
-        if rising_edge(i_clk) then
-        
-            if (i_rst = '1') then
-                current_state <= reset_state;
-                
-            else
-                case current_state is
-                
-                when reset_state =>
-                    -- outputs a 0
-                    o_done <= '0';
-                    o_en <= '0';
-                    o_we <= '0';
-                    o_data <= eight_bit_zero;
-                    -- stato
-                    current_state <= reset_state;   -- Dav: è necessaria? non è implicito nel case?
-                    -- indirizzi a 0
-                    o_address <= sixteen_bit_zero;
-                    program_counter <= sixteen_bit_zero;
-                    -- variabili a 0
-                    dimension <= sixteen_bit_zero;
-                    pixel_counter <= sixteen_bit_zero;
-                    max <= eight_bit_zero;
-                    min <= eight_bit_zero;
-                    delta_value <= eight_bit_zero;
-                    shift_value <= "0000";
-                    temp_value <= sixteen_bit_zero;
-                    new_value <= eight_bit_zero;
-                    
-                    if (i_start = '1') then
-                        o_en <= '1'; -- alzo segnale enable -- Dav: dovrebbe essere S1 ad occuparsi di alzare en no?
-                        current_state <= S1;
-                    end if;
-                
-                when S1 => 
-                --roba che accade in S1 
-                
-                
-                                   
-                end case;
-                
-            end if;
-                
+        if(i_res = '1') then
+            current_state <= RESET_STATE;
+        elsif rising_edge(i_clk) then       -- commuta sul fronte di salita
+            current_state <= next_state;
         end if;
-                           
     end process;
-    
+
+    process(current_state, i_start, o_done)
+    begin
+        next_state <= current_state;
+        case current_state is
+            when RESET_STATE =>
+                if i_start = '1' then
+                    next_state <= S1;
+                end if;
+            when S1 =>
+                next_state <= S2;
+            when S2 =>
+                next_state <= S3;
+            when S3 =>
+                next_state <= S4;
+            when S4 =>                  -- inizio scansione per trovare MIN e MAX
+                if o_zero = '1' then    -- caso DIM=1
+                    next_state <= S6;
+                else                    -- caso DIM>1
+                    next_state <= S5;
+                end if;
+            when S5 =>
+                if o_zero = '1' then    -- fine scansione
+                    next_state <= S6;
+                else                    -- scansione ancora in corso
+                    next_state <= S5;
+                end if;
+            when S6 =>                  -- scansione completata, MAX e MIN trovati, calcolo DELTA
+                next_state <= S7;
+            when S7 =>
+                next_state <= S8;
+            when S8 =>
+                next_state <= S9;
+            when S9 =>
+                next_state <= S9;
+            when S10 =>
+                next_state <= S11;
+            when S11 =>
+                if o_zero = '1' then    -- computazione e scrittura completata per ogni pixel
+                    next_state <= S12;
+                else                    -- passa al pixel successivo
+                    next_state <= S8;
+                end if;
+            when S12 =>
+                if i_start = '0' then
+                    next_state <= S13;
+                end if;
+            when S13 =>                 -- stato finale in attesa di nuovo start
+                if i_start = '1' then
+                    next_state <= S1;   -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
+        end case;
+    end process;
+                
 end Behavioral;
