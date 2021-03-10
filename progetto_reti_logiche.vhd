@@ -58,6 +58,12 @@ end progetto_reti_logiche;
 
 architecture Behavioral of progetto_reti_logiche is
     
+    component datapath is
+        port(
+            -- segnali del datapath
+        );
+    end component;
+    
     type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
                S9, S10, S11, S12, S13);
     
@@ -74,6 +80,10 @@ architecture Behavioral of progetto_reti_logiche is
     signal new_value: std_logic_vector(8 downto 0); -- nuovo valore del pixel
 
 begin
+    
+    DATAPATH0: datapath port map(     -- mappa i segnali con i nomi originali
+        -- segnali del datapath
+    );
 
     process(i_clk, i_res)
     begin
@@ -134,6 +144,10 @@ begin
                 if i_start = '1' then
                     next_state <= S1;   -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
         end case;
+    end process;
+            
+    process(current_state)      -- gestisce i segnali degli stati della fsm
+            begin
     end process;
                 
 end Behavioral;
