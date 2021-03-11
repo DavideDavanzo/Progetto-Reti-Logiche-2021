@@ -59,9 +59,7 @@ end progetto_reti_logiche;
 architecture Behavioral of progetto_reti_logiche is
     
     component datapath is
-        port(
-            -- segnali del datapath
-        );
+        -- port();
     end component;
     
     type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
@@ -149,6 +147,52 @@ begin
             
     process(current_state)      -- gestisce i segnali degli stati della fsm
             begin
+                -- inizializzazione dei segnali
+                pc_load <= '1';
+                pc0_load <= '0';
+                in_load <= '0';
+                dim_load <= '0';
+                cont_load <= '0';
+                delta_load <= '0';
+                sl_load <= '0';
+                temp_load <= '0';
+                nv_load <= '0';
+                d_sel <= '00';
+                mdim_sel <= '0';
+                mcont_sel <= '0';
+                minmax_sel <= '0';
+                mpc_sel <= '00'
+                en <= '0';
+                we <= '0';
+                
+                case current_state is
+                    when RESET_STATE =>
+                    when S1 =>
+                        en <= '1';
+                        mpc_sel <= '01';
+                        pc_load <= '1';
+                        in_load <= '1';
+                        dim_load <= '1';    -- DIM=1 temporaneamente
+                    when S2 =>
+                        mdim_sel <= '1';
+                    when S3 =>
+                        pc0_load <= '1';
+                    when S4 =>
+                        dim_load <= '0';
+                        d_sel <= '01';
+                        pc0_load <= '0';
+                    when S5 =>
+                        mcont_sel <= '1';
+                        minmax_sel <= '1';
+                    when S6 =>
+                    when S7 =>
+                    when S8 =>
+                    when S9 =>
+                    when S10 =>
+                    when S11 =>
+                    when S12 =>
+                    when S13 =>
+                end case;
     end process;
                 
 end Behavioral;
