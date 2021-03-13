@@ -127,7 +127,7 @@ architecture Behavioral of progetto_reti_logiche is
     end component;
     
     type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
-               S9, S10, S11, S12, S13);
+               S9, S10, S11, S12, S13, S14);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -216,10 +216,10 @@ begin
                 -- inizializzazione dei segnali
                 pc_load <= '1';
                 pc0_load <= '0';
-                data_load <= '0';
+                in_load <= '0';
                 dim_load <= '0';
                 cont_load <= '0';
-                -- delta_load <= '0';
+                -- delta_load <= '0';   --  inutile
                 sl_load <= '0';
                 temp_load <= '0';
                 nv_load <= '0';
@@ -230,35 +230,81 @@ begin
                 mpc_sel <= '00'
                 en <= '0';
                 we <= '0';
+                o_done <= '0';
                 
                 case current_state is
-                    when RESET_STATE =>
-                    when S1 =>
+                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
+                    when S1 =>              -- leggo da memoria il primo byte
                         en <= '1';
                         mpc_sel <= '01';
                         pc_load <= '1';
                         in_load <= '1';
                         dim_load <= '1';    -- DIM=1 temporaneamente
-                    when S2 =>
+                    when S2 =>              -- leggo da memoria il secondo byte
                         mdim_sel <= '1';
-                    when S3 =>
+                    when S3 =>              -- calcolo la dimensione, leggo il primo pixel di cui salvo l'indirizzo in PC0
                         pc0_load <= '1';
-                    when S4 =>
-                        dim_load <= '0';
-                        d_sel <= '01';
+                        pc_load <= '0';
+                    when S4 =>              -- indirizzo il primo byte letto nel modulo MIN/MAX e inizializzo il contatore
+                        en <= '0';
+                        in_load <= '0';
                         pc0_load <= '0';
-                    when S5 =>
+                        pc_load <= '1';
+                        cont_load <= '1';
+                        d_sel <= '01';
+                    when S5 =>              -- leggo e confronto i valori di tutti i pixel rimanenti
+                        en <= '1';
+                        in_load <= '1';
+                        mm_sel <= '1';
                         mcont_sel <= '1';
-                        minmax_sel <= '1';
-                    when S6 =>
-                    when S7 =>
-                    when S8 =>
-                    when S9 =>
-                    when S10 =>
-                    when S11 =>
-                    when S12 =>
-                    when S13 =>
-                    when S14 =>
+                    when S6 =>              -- lascio che nel modulo MAX/MIN venga confrontato anche l'ultimo pixel
+                        en <= '0';
+                        in_load <= '0';
+                        cont_load <= '0';
+                    when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
+                        mpc_sel <= '10';
+                        pc_load <= '1';
+                        sl_load <= '1';
+                        cont_load <= '0';
+                    when S8 =>              -- resetto il contatore a DIM
+                        en <= '1';
+                        in_load <= '1';
+                        pc_load <= '0';
+                        sl_load <= '0';
+                        mcont_sel <= '0';
+                    when S9 =>              -- calcolo il valore temporaneo
+                        en <= '0';
+                        in_load <= '1';
+                        temp_load <= '1';
+                        cont_load <= '0';
+                    when S10 =>             -- definisco il valore finale da scrivere
+                        temp_load <= '0';
+                        nv_load <= '1';
+                    when S11 =>             -- scrivo in memoria il valore calcolato all'indirizzo di memoria a distanza DIM da quello del pixel letto
+                        en <= '1';
+                        we <= '1';
+                        mpc_sel <= '01';
+                        pc_load <= '1';
+                        nv_load <= '0';
+                    when S12 =>             -- leggo il byte successivo e aggiorno il contatore
+                        we <= '0';
+                        in_load <= '1';
+                        pc_load <= '0';
+                        mcont_sel <= '1';
+                        cont_load <= '1';
+                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
+                        en <= '0';
+                        we <= '0';
+                        in_load <= '0';
+                        pc_load <= '0';
+                        sl_load <= '0';
+                        pc0_load <= '0';
+                        temp_load <= '0';
+                        nv_load <= '0';
+                        cont_load <= '0';
+                        o_done <= '1';
+                    when S14 =>             -- quando si abbassa START posso riabbassare DONE
+                        o_done <= '0';
                 end case;
     end process;
                 
