@@ -58,8 +58,72 @@ end progetto_reti_logiche;
 
 architecture Behavioral of progetto_reti_logiche is
     
+    component dim_module is
+        port (
+            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
+            mux_dim_sel: in std_logic; -- seleziona il secondo operando da moltiplicare
+            dim_load: in std_logic; -- load del registro dim
+            mux_cont_sel: in std_logic; -- decide cosa far passare prima del sottrattore
+            cont_load: in std_logic; -- load del registro cont
+            o_zero: out std_logic; -- =1 <==> il contatore raggiunge lo 0
+            o_dim: out std_logic_vector(15 downto 0) -- valore attuale della dimensione
+        );
+    end component;
+    
+    component program_counter is
+        port (
+            i_dim: in std_logic_vector(15 downto 0); -- entra nel modulo
+            mux_pc_sel: in std_logic; -- seleziona quale indirizzo inserire nel pc
+            pc_load: in std_logic; -- load del registro pc
+            mux_addr_sel: in std_logic; -- decide che indirizzo mandare in memoria
+            pc_iniz_load: in std_logic; -- load del registro cont
+            o_address: out std_logic_vector(15 downto 0) -- valore attuale della dimensione
+        );
+    end component;
+    
+    component min_max_module is
+        port (
+            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
+            mux_compare_sel: in std_logic; -- seleziona quale numero confrontare
+            max_load: in std_logic; -- load del registro max
+            min_load: in std_logic; -- load del registro min
+            o_min: out std_logic_vector(7 downto 0); -- valore min
+            o_max: out std_logic_vector(7 downto 0) -- valore max
+        );
+    end component;
+    
+    component shift_level_module is
+        generic (
+                greater_127: std_logic;
+                greater_63: std_logic;
+                greater_31: std_logic;
+                greater_15: std_logic;
+                greater_7: std_logic;
+                greater_3: std_logic;
+                greater_1: std_logic;
+                greater_0: std_logic
+        );
+        port (
+            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
+            delta_load: in std_logic; -- load del registro delta
+            shift_lvl_load: in std_logic; -- load del registro shift_lvl
+            o_shift_lvl: out std_logic_vector(3 downto 0) -- valore shift level
+        );
+    end component;
+    
+    component new_value_module is
+        port (
+            temp_load: in std_logic; -- load registro temp
+            new_value_load: in std_logic; -- load registro new value
+            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
+            i_min: in std_logic_vector(7 downto 0); -- valore di min
+            i_shift_lvl: in std_logic_vector(3 downto 0); -- valore shift level
+            o_new_value: out std_logic_vector(7 downto 0) -- output new value
+        );
+    end component;
+        
     component datapath is
-        -- port();
+        
     end component;
     
     type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
@@ -140,7 +204,7 @@ begin
                 end if;
             when S13 =>                 -- stato finale in attesa di nuovo start
                 if i_start = '1' then
-                    next_state <= S1;   -- non torna in RESET_STATE perchÃ¨ il PC non deve essere resettato all'indirizzo 0
+                    next_state <= S1;   -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
                 end if;
         end case;
     end process;
