@@ -172,7 +172,7 @@ begin
                 next_state <= S4;
             when S4 =>                  -- inizio scansione per trovare MIN e MAX
                 if o_zero = '1' then    -- caso DIM=1
-                    next_state <= S6;
+                    next_state <= S7;
                 else                    -- caso DIM>1
                     next_state <= S5;
                 end if;
@@ -189,22 +189,24 @@ begin
             when S8 =>
                 next_state <= S9;
             when S9 =>
-                next_state <= S9;
+                next_state <= S10;
             when S10 =>
                 next_state <= S11;
             when S11 =>
                 if o_zero = '1' then    -- computazione e scrittura completata per ogni pixel
-                    next_state <= S12;
+                    next_state <= S13;
                 else                    -- passa al pixel successivo
-                    next_state <= S8;
+                    next_state <= S12;
                 end if;
             when S12 =>
-                if i_start = '0' then
-                    next_state <= S13;
-                end if;
-            when S13 =>                 -- stato finale in attesa di nuovo start
-                if i_start = '1' then
-                    next_state <= S1;   -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
+                next_state <= S9;
+            when S13 =>                 
+                next_state <= S14;   
+            when S14 =>              -- stato finale in attesa di nuovo start
+                if start = '1' then
+                    next_state <= S1    -- non torna in RESET_STATE perchÃ¨ il PC non deve essere resettato all'indirizzo 0
+                else
+                    next_state <= S14;
                 end if;
         end case;
     end process;
@@ -214,10 +216,10 @@ begin
                 -- inizializzazione dei segnali
                 pc_load <= '1';
                 pc0_load <= '0';
-                in_load <= '0';
+                data_load <= '0';
                 dim_load <= '0';
                 cont_load <= '0';
-                delta_load <= '0';
+                -- delta_load <= '0';
                 sl_load <= '0';
                 temp_load <= '0';
                 nv_load <= '0';
@@ -256,6 +258,7 @@ begin
                     when S11 =>
                     when S12 =>
                     when S13 =>
+                    when S14 =>
                 end case;
     end process;
                 
