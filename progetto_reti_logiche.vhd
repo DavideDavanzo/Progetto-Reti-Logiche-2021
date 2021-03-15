@@ -31,6 +31,7 @@ end constants;
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.std_logic_arith;
 
 -- Uncomment the following library declaration if using
 -- arithmetic functions with Signed or Unsigned values
@@ -41,6 +42,207 @@ use work.constants.all;
 -- any Xilinx leaf cells in this code.
 --library UNISIM;
 --use UNISIM.VComponents.all;
+
+entity datapath is
+    port (
+        -- entrate principali
+        i_clk: in std_logic;
+        i_res: in std_logic;
+        i_data: in std_logic_vector (7 downto 0); -- entra nel circuito
+        in_load: in std_logic; -- registro in entrata
+        d_sel: in std_logic_vector (1 downto 0); -- instradamento ingresso
+        i_we: in std_logic;
+        -- modulo dimensione
+        mux_dim_sel: in std_logic; -- seleziona il secondo operando da moltiplicare
+        dim_load: in std_logic; -- load del registro dim
+        mux_cont_sel: in std_logic; -- decide cosa far passare prima del sottrattore
+        cont_load: in std_logic; -- load del registro cont
+        -- modulo pc
+        mux_pc_sel: in std_logic; -- seleziona quale indirizzo inserire nel pc
+        pc_load: in std_logic; -- load del registro pc
+        mux_addr_sel: in std_logic; -- decide che indirizzo mandare in memoria
+        pc_iniz_load: in std_logic; -- load del registro pc iniziale
+        -- modulo min max
+        mux_compare_sel: in std_logic; -- seleziona quale numero confrontare
+        -- modulo shift level
+        delta_load: in std_logic; -- load del registro delta
+        shift_lvl_load: in std_logic; -- load del registro shift_lvl
+        -- modulo new value
+        temp_load: in std_logic; -- load registro temp
+        new_value_load: in std_logic; -- load registro new value
+        -- uscite
+        o_data : out std_logic_vector (7 downto 0); -- esce per andare in memoria
+        o_address: out std_logic_vector(15 downto 0); -- indirizzo attuale
+        o_zero: out std_logic; -- =1 <==> il contatore raggiunge lo 0
+        o_done : out std_logic
+    );
+end datapath;
+
+architecture Behavioral of datapath is
+    -- registri
+    signal in_reg: std_logic_vector(7 downto 0);
+    signal pc_reg: std_logic_vector(15 downto 0);
+    signal pc_iniz_reg: std_logic_vector(15 downto 0);
+    signal dim_reg: std_logic_vector(15 downto 0);
+    signal counter_reg: std_logic_vector(15 downto 0);
+    signal max_reg: std_logic_vector(7 downto 0);
+    signal min_reg: std_logic_vector(7 downto 0);
+    signal delta_reg: std_logic_vector(7 downto 0);
+    signal shift_lvl_reg: std_logic_vector(3 downto 0);
+    signal temp_reg: std_logic_vector(15 downto 0);
+    signal new_value_reg: std_logic_vector(7 downto 0);
+    signal sign_extension: std_logic_vector(15 downto 0);
+    signal log_value: std_logic_vector(3 downto 0);
+    
+begin
+
+    process(i_clk, i_res)
+    begin
+    
+        if(i_res = '1') then
+            
+            in_reg <= eight_bit_zero;
+            pc_reg <= sixteen_bit_zero;
+            pc_iniz_reg <= sixteen_bit_zero;
+            dim_reg <= sixteen_bit_zero;
+            counter_reg <= sixteen_bit_zero;
+            max_reg <= eight_bit_zero;
+            min_reg <= eight_bit_zero;
+            delta_reg <= eight_bit_zero;
+            shift_lvl_reg <= "0000";
+            temp_reg <= eight_bit_zero;
+            new_value_reg <= eight_bit_zero; 
+             
+        elsif(i_clk'event and i_clk='1') then
+            
+            -- gestione pc
+            if(pc_load = '1') then
+                if(mux_pc_sel = '1') then
+                    pc_reg <= pc_iniz_reg;
+                elsif(mux_pc_sel = '0') then
+                    pc_reg <= pc_reg + 1;
+                end if;
+            end if;
+            
+            if(pc_iniz_load = '1') then
+                pc_iniz_reg <= pc_reg;
+            end if;
+            
+            -- carico registro iniziale
+            if(in_load = '1') then
+                in_reg <= i_data;
+            end if;
+            
+            -- carico contatore
+            if(cont_load = '1') then
+                if(mux_cont_sel = '1') then
+                    counter_reg <= counter_reg - 1;
+                elsif(mux_cont_sel = '0') then
+                    counter_reg <= dim_reg - 1;
+                end if;
+            end if;
+            
+            -- segnale zero
+            if(counter_reg = sixteen_bit_zero) then
+                o_zero <= '1';
+            end if;
+            
+            --------------------- uscite demux ----------------------------
+            if(d_sel = "00") then -- CASO 00
+                if(dim_load = '1') then
+                    if(mux_dim_sel = '0') then
+                        dim_reg <= in_reg;
+                    elsif(mux_dim_sel = '1') then
+                        dim_reg <= std_logic_vector(unsigned(i_data) * unsigned(dim_reg));
+                    end if; 
+                end if;
+            -- 
+            --   
+            elsif(d_sel = "01") then -- CASO 01
+                if(mux_compare_sel = '0') then
+                    if(in_reg > 0) then
+                        max_reg <= in_reg;
+                    end if;
+                    if(in_reg <= 255) then
+                        min_reg <= in_reg;
+                    end if;
+                    
+                elsif(mux_compare_sel = '1') then
+                    if(in_reg > max_reg) then
+                        max_reg <= in_reg;
+                    end if;
+                    if(in_reg <= min_reg) then
+                        min_reg <= in_reg;
+                    end if;
+                end if;
+            --
+            --    
+            elsif(d_sel = "10") then -- CASO 10
+                sign_extension <= "00000000" & (in_reg - min_reg); 
+            end if;
+            ---------------------------------------------------------------
+            
+            --shift level
+            if(delta_load = '1') then
+                delta_reg <= max_reg - min_reg;
+            end if;
+            
+            if(delta_reg = 0) then
+                log_value <= "0000";
+            elsif(delta_reg = 1 or delta_reg = 2) then
+                log_value <= "0001";
+            elsif(delta_reg > 2 and delta_reg < 7) then
+                log_value <= "0010";
+            elsif(delta_reg > 6 and delta_reg < 15) then
+                log_value <= "0011";
+            elsif(delta_reg > 14 and delta_reg  < 31) then
+                log_value <= "0100";
+            elsif(delta_reg > 30 and delta_reg  < 63) then
+                log_value <= "0101";
+            elsif(delta_reg > 62 and delta_reg  < 127) then
+                log_value <= "0110";
+            elsif(delta_reg > 126 and delta_reg  < 255) then
+                log_value <= "0111";
+            elsif(delta_reg = 255) then
+                log_value <= "1000";
+            end if;
+ 
+            if(shift_lvl_load = '1') then
+                shift_lvl_reg <= 8 - log_value;
+            end if;
+            
+            -- creazione di temp
+            if(temp_load = '1') then
+                temp_reg <= std_logic_vector(shift_left(unsigned(sign_extension), to_integer(unsigned(shift_lvl_reg))));
+            end if;
+            
+            -- new value
+            if(new_value_load = '1') then
+                if(temp_reg > "0000000011111111") then
+                    new_value_reg <= "11111111";
+                else new_value_reg <= temp_reg(7 downto 0);
+                end if;
+            end if;
+            
+            if(i_we = '1') then
+                o_address <= pc_reg + dim_reg;
+            elsif(i_we = '0') then
+                o_address <= pc_reg;
+            end if;
+            
+        end if;    
+    end process;
+    
+    o_data <= new_value_reg;
+    
+end Behavioral;
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+use IEEE.std_logic_arith;
+use work.constants.all;
 
 entity progetto_reti_logiche is
     port ( 
@@ -57,73 +259,40 @@ entity progetto_reti_logiche is
 end progetto_reti_logiche;
 
 architecture Behavioral of progetto_reti_logiche is
-    
-    component dim_module is
-        port (
-            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
-            mux_dim_sel: in std_logic; -- seleziona il secondo operando da moltiplicare
-            dim_load: in std_logic; -- load del registro dim
-            mux_cont_sel: in std_logic; -- decide cosa far passare prima del sottrattore
-            cont_load: in std_logic; -- load del registro cont
-            o_zero: out std_logic; -- =1 <==> il contatore raggiunge lo 0
-            o_dim: out std_logic_vector(15 downto 0) -- valore attuale della dimensione
-        );
-    end component;
-    
-    component program_counter is
-        port (
-            i_dim: in std_logic_vector(15 downto 0); -- entra nel modulo
-            mux_pc_sel: in std_logic; -- seleziona quale indirizzo inserire nel pc
-            pc_load: in std_logic; -- load del registro pc
-            mux_addr_sel: in std_logic; -- decide che indirizzo mandare in memoria
-            pc_iniz_load: in std_logic; -- load del registro cont
-            o_address: out std_logic_vector(15 downto 0) -- valore attuale della dimensione
-        );
-    end component;
-    
-    component min_max_module is
-        port (
-            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
-            mux_compare_sel: in std_logic; -- seleziona quale numero confrontare
-            max_load: in std_logic; -- load del registro max
-            min_load: in std_logic; -- load del registro min
-            o_min: out std_logic_vector(7 downto 0); -- valore min
-            o_max: out std_logic_vector(7 downto 0) -- valore max
-        );
-    end component;
-    
-    component shift_level_module is
-        generic (
-                greater_127: std_logic;
-                greater_63: std_logic;
-                greater_31: std_logic;
-                greater_15: std_logic;
-                greater_7: std_logic;
-                greater_3: std_logic;
-                greater_1: std_logic;
-                greater_0: std_logic
-        );
-        port (
-            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
-            delta_load: in std_logic; -- load del registro delta
-            shift_lvl_load: in std_logic; -- load del registro shift_lvl
-            o_shift_lvl: out std_logic_vector(3 downto 0) -- valore shift level
-        );
-    end component;
-    
-    component new_value_module is
-        port (
-            temp_load: in std_logic; -- load registro temp
-            new_value_load: in std_logic; -- load registro new value
-            i_data: in std_logic_vector(7 downto 0); -- entra nel modulo
-            i_min: in std_logic_vector(7 downto 0); -- valore di min
-            i_shift_lvl: in std_logic_vector(3 downto 0); -- valore shift level
-            o_new_value: out std_logic_vector(7 downto 0) -- output new value
-        );
-    end component;
         
     component datapath is
-        
+        port (
+            -- entrate principali
+            i_clk: in std_logic;
+            i_res: in std_logic;
+            i_data: in std_logic_vector (7 downto 0);
+            in_load: in std_logic;
+            d_sel: in std_logic_vector (1 downto 0);
+            i_we: in std_logic;
+            -- modulo dimensione
+            mux_dim_sel: in std_logic;
+            dim_load: in std_logic;
+            mux_cont_sel: in std_logic;
+            cont_load: in std_logic;
+            -- modulo pc
+            mux_pc_sel: in std_logic;
+            pc_load: in std_logic;
+            mux_addr_sel: in std_logic;
+            pc_iniz_load: in std_logic;
+            -- modulo min max
+            mux_compare_sel: in std_logic;
+            -- modulo shift level
+            delta_load: in std_logic;
+            shift_lvl_load: in std_logic;
+            -- modulo new value
+            temp_load: in std_logic;
+            new_value_load: in std_logic;
+            -- uscite
+            o_data : out std_logic_vector (7 downto 0); 
+            o_address: out std_logic_vector(15 downto 0);
+            o_zero: out std_logic;
+            o_done : out std_logic
+        );
     end component;
     
     type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
@@ -131,25 +300,55 @@ architecture Behavioral of progetto_reti_logiche is
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
-    signal program_counter: std_logic_vector(15 downto 0); -- indirizzo attuale
-    signal dimension: std_logic_vector(15 downto 0); -- dimensione
-    signal max: std_logic_vector(7 downto 0); -- massimo
-    signal min: std_logic_vector(7 downto 0); -- minimo
-    signal pixel_counter: std_logic_vector(15 downto 0); -- contatore dimensione
-    signal delta_value: std_logic_vector(7 downto 0); -- max - min
-    signal shift_value: std_logic_vector(3 downto 0); -- shift
-    signal temp_value:  std_logic_vector(15 downto 0); -- valore temporaneo a confronto con 255
-    signal new_value: std_logic_vector(8 downto 0); -- nuovo valore del pixel
+    signal in_load: std_logic;
+    signal d_sel: std_logic_vector(1 downto 0);
+    signal i_we: std_logic;
+    signal mux_dim_sel: std_logic;
+    signal dim_load: std_logic;
+    signal mux_cont_sel: std_logic;
+    signal cont_load: std_logic;
+    signal mux_pc_sel: std_logic;
+    signal pc_load: std_logic;
+    signal mux_addr_sel: std_logic;
+    signal pc_iniz_load: std_logic;
+    signal mux_compare_sel: std_logic;
+    signal delta_load: std_logic;
+    signal shift_lvl_load: std_logic;
+    signal temp_load: std_logic;
+    signal new_value_load: std_logic;
+    signal o_zero: std_logic;
 
 begin
     
     DATAPATH0: datapath port map(     -- mappa i segnali con i nomi originali
-        -- segnali del datapath
+        i_clk,
+        i_rst,
+        i_data,
+        in_load,
+        d_sel,
+        i_we,
+        mux_dim_sel,
+        dim_load,
+        mux_cont_sel,
+        cont_load,
+        mux_pc_sel,
+        pc_load,
+        mux_addr_sel,
+        pc_iniz_load,
+        mux_compare_sel,
+        delta_load,
+        shift_lvl_load,
+        temp_load,
+        new_value_load,
+        o_data,
+        o_address,
+        o_zero,
+        o_done
     );
 
-    process(i_clk, i_res)
+    process(i_clk, i_rst)
     begin
-        if(i_res = '1') then
+        if(i_rst = '1') then
             current_state <= RESET_STATE;
         elsif rising_edge(i_clk) then       -- commuta sul fronte di salita
             current_state <= next_state;
