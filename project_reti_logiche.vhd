@@ -107,7 +107,7 @@ begin
             min_reg <= eight_bit_zero;
             delta_reg <= eight_bit_zero;
             shift_lvl_reg <= "0000";
-            temp_reg <= eight_bit_zero;
+            temp_reg <= sixteen_bit_zero;
             new_value_reg <= eight_bit_zero; 
              
         elsif(i_clk'event and i_clk='1') then
@@ -148,7 +148,7 @@ begin
             if(d_sel = "00") then -- CASO 00
                 if(dim_load = '1') then
                     if(mux_dim_sel = '0') then
-                        dim_reg <= in_reg;
+                        dim_reg <= "00000000" & in_reg;
                     elsif(mux_dim_sel = '1') then
                         dim_reg <= std_logic_vector(unsigned(i_data) * unsigned(dim_reg));
                     end if; 
