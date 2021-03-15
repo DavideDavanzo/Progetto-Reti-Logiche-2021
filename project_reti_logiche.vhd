@@ -272,7 +272,7 @@ architecture Behavioral of project_reti_logiche is
             mux_cont_sel: in std_logic;
             cont_load: in std_logic;
             -- modulo pc
-            mux_pc_sel: in std_logic_vector (1 downto 0);   -- modified: previously std_logic
+            mux_pc_sel: in std_logic;
             pc_load: in std_logic;
             mux_addr_sel: in std_logic;
             pc_iniz_load: in std_logic;
@@ -304,7 +304,7 @@ architecture Behavioral of project_reti_logiche is
     signal dim_load: std_logic;
     signal mux_cont_sel: std_logic;
     signal cont_load: std_logic;
-    signal mux_pc_sel: std_logic_vector (1 downto 0);
+    signal mux_pc_sel: std_logic;
     signal pc_load: std_logic;
     signal mux_addr_sel: std_logic;
     signal pc_iniz_load: std_logic;
@@ -423,7 +423,7 @@ begin
                 mux_dim_sel <= '0';
                 mux_cont_sel <= '0';
                 mux_compare_sel <= '0';
-                mux_pc_sel <= "00";
+                mux_pc_sel <= '0';
                 o_en <= '0';    -- mandato direttamente alla memoria
                 i_we <= '0';    -- mandato al datapath
                 o_done <= '0';
@@ -432,7 +432,6 @@ begin
                     when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
                     when S1 =>              -- leggo da memoria il primo byte
                         o_en <= '1';
-                        mux_pc_sel <= "01";
                         pc_load <= '1';
                         in_load <= '1';
                         dim_load <= '1';    -- DIM=1 temporaneamente
@@ -458,7 +457,7 @@ begin
                         in_load <= '0';
                         cont_load <= '0';
                     when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
-                        mux_pc_sel <= "10";
+                        mux_pc_sel <= '1';
                         pc_load <= '1';
                         shift_lvl_load <= '1';
                         cont_load <= '0';
@@ -479,7 +478,7 @@ begin
                     when S11 =>             -- scrivo in memoria il valore calcolato all'indirizzo di memoria a distanza DIM da quello del pixel letto
                         o_en <= '1';
                         i_we <= '1';
-                        mux_pc_sel <= "01";
+                        mux_pc_sel <= '0';
                         pc_load <= '1';
                         new_value_load <= '0';
                     when S12 =>             -- leggo il byte successivo e aggiorno il contatore
