@@ -117,7 +117,7 @@ begin
                 if(mux_pc_sel = '1') then
                     pc_reg <= pc_iniz_reg;
                 elsif(mux_pc_sel = '0') then
-                    pc_reg <= pc_reg + 1;
+                    pc_reg <= pc_reg + "0000000000000001"; -- era solo +1
                 end if;
             end if;
             
@@ -150,7 +150,7 @@ begin
                     if(mux_dim_sel = '0') then
                         dim_reg <= "00000000" & in_reg;
                     elsif(mux_dim_sel = '1') then
-                        dim_reg <= std_logic_vector(unsigned(i_data) * unsigned(dim_reg));
+                        dim_reg <= std_logic_vector(unsigned(i_data) * unsigned(dim_reg(7 downto 0)));
                     end if; 
                 end if;
             -- 
@@ -292,7 +292,7 @@ architecture Behavioral of project_reti_logiche is
         );
     end component;
     
-    type S is (RESET_STATE, S1, S2, S3, S4, S5, S6, S7, S8, 
+    type S is (RESET_STATE, STATO_DI_PROVA, S1, S2, S3, S4, S5, S6, S7, S8, 
                S9, S10, S11, S12, S13, S14);
     
     signal current_state: S; -- stato corrente
@@ -352,14 +352,16 @@ begin
         end if;
     end process;
 
-    process(current_state, i_start)
+    process(current_state, i_start, o_zero)
     begin
         next_state <= current_state;
         case current_state is
             when RESET_STATE =>
-                if i_start = '1' then
+                if (i_start = '1') then
                     next_state <= S1;
                 end if;
+            when STATO_DI_PROVA =>  --inizializzo PC all'indirizzo zero
+                next_state <= S1;
             when S1 =>
                 next_state <= S2;
             when S2 =>
@@ -410,7 +412,7 @@ begin
     process(current_state)      -- gestisce i segnali degli stati della fsm
             begin
                 -- inizializzazione dei segnali
-                pc_load <= '1';
+                pc_load <= '0';
                 pc_iniz_load <= '0';
                 in_load <= '0';
                 dim_load <= '0';
@@ -430,6 +432,8 @@ begin
                 
                 case current_state is
                     when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
+                    when STATO_DI_PROVA => 
+                        pc_load <= '1';
                     when S1 =>              -- leggo da memoria il primo byte
                         o_en <= '1';
                         pc_load <= '1';
