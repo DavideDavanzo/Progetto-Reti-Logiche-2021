@@ -140,7 +140,7 @@ begin
             end if;
             
             -- segnale zero
-            if(counter_reg = sixteen_bit_zero) then
+            if(counter_reg = "0000000000000001") then
                 o_zero <= '1';
             end if;
             
@@ -408,7 +408,7 @@ begin
                 end if;
             when S15 =>              -- stato finale in attesa di nuovo start
                 if i_start = '1' then
-                    next_state <= S0;    -- non torna in RESET_STATE perchË il PC non deve essere resettato all'indirizzo 0
+                    next_state <= S0;    -- non torna in RESET_STATE perch√® il PC non deve essere resettato all'indirizzo 0
                 else
                     next_state <= S15;
                 end if;
@@ -438,7 +438,7 @@ begin
                 o_done <= '0';
                 
                 case current_state is
-                    when RESET_STATE =>     -- non cambio nulla, tutto Ë gi‡ stato inizializzato
+                    when RESET_STATE =>     -- non cambio nulla, tutto √® gi√† stato inizializzato
                     when S0 =>
                         o_en <= '1';        -- leggo M(0)
                         mux_pc_sel <= '0';
@@ -515,7 +515,7 @@ begin
                         pc_load <= '0';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ë gi‡ l'indirizzo del primo byte della prossima immagine
+                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC √® gi√† l'indirizzo del primo byte della prossima immagine
                         o_en <= '0';
                         i_we <= '0';
                         o_we <= '0';
@@ -533,7 +533,7 @@ begin
                 
 -- CODICE 1                
 --                case current_state is
---                    when RESET_STATE =>     -- non cambio nulla, tutto Ë gi‡ stato inizializzato
+--                    when RESET_STATE =>     -- non cambio nulla, tutto √® gi√† stato inizializzato
 --                    when STATO_DI_PROVA =>
 --                        pc_load <= '1'; -- PC=1
 --                    when S1 =>              -- leggo da memoria il primo byte
@@ -593,7 +593,7 @@ begin
 --                        pc_load <= '0';
 --                        mux_cont_sel <= '1';
 --                        cont_load <= '1';
---                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ë gi‡ l'indirizzo del primo byte della prossima immagine
+--                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC √® gi√† l'indirizzo del primo byte della prossima immagine
 --                        o_en <= '0';
 --                        i_we <= '0';
 --                        in_load <= '0';
