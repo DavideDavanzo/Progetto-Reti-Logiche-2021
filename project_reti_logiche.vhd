@@ -20,6 +20,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
 package constants is
     constant sixteen_bit_zero: std_logic_vector := "0000000000000000";
     constant eight_bit_zero: std_logic_vector := "00000000";
@@ -133,9 +134,9 @@ begin
             -- carico contatore
             if(cont_load = '1') then
                 if(mux_cont_sel = '1') then
-                    counter_reg <= counter_reg - 1;
+                    counter_reg <= counter_reg - "0000000000000001";
                 elsif(mux_cont_sel = '0') then
-                    counter_reg <= dim_reg - 1;
+                    counter_reg <= dim_reg - "0000000000000001";
                 end if;
             end if;
             
@@ -143,6 +144,9 @@ begin
             if(counter_reg = "0000000000000001") then
                 o_zero <= '1';
             end if;
+--            if( (dim_reg = "00000000000000000001") or (counter_reg - "0000000000000001" = "0000000000000000") ) then
+--                o_zero <= '1';
+--            end if;
             
             --------------------- uscite demux ----------------------------
             if(d_sel = "00") then -- CASO 00
@@ -157,25 +161,31 @@ begin
             --   
             elsif(d_sel = "01") then -- CASO 01
                 if(mux_compare_sel = '0') then
-                    if(in_reg > 0) then
-                        max_reg <= in_reg;
-                    end if;
-                    if(in_reg <= 255) then
-                        min_reg <= in_reg;
-                    end if;
+                    max_reg <= in_reg;
+                    min_reg <= in_reg;
+--                    if(in_reg > 0) then
+--                        max_reg <= in_reg;
+--                    else
+--                        max_reg <= eight_bit_zero;
+--                    end if;
+--                    if(in_reg < "11111111") then
+--                        min_reg <= in_reg;
+--                    else
+--                        min_reg <= "11111111";
+--                    end if;
                     
                 elsif(mux_compare_sel = '1') then
                     if(in_reg > max_reg) then
                         max_reg <= in_reg;
                     end if;
-                    if(in_reg <= min_reg) then
+                    if(in_reg < min_reg) then
                         min_reg <= in_reg;
                     end if;
                 end if;
             --
             --    
             elsif(d_sel = "10") then -- CASO 10
-                sign_extension <= "00000000" & (in_reg - min_reg); 
+                sign_extension <= "00000000" & (in_reg - min_reg);      -- è come se ci fosse un registro in più, mi sa che così aggiungiamo cicli di clk
             end if;
             ---------------------------------------------------------------
             
@@ -408,7 +418,7 @@ begin
                 end if;
             when S15 =>              -- stato finale in attesa di nuovo start
                 if i_start = '1' then
-                    next_state <= S0;    -- non torna in RESET_STATE perchÃ¨ il PC non deve essere resettato all'indirizzo 0
+                    next_state <= S0;    -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
                 else
                     next_state <= S15;
                 end if;
@@ -438,27 +448,28 @@ begin
                 o_done <= '0';
                 
                 case current_state is
-                    when RESET_STATE =>     -- non cambio nulla, tutto Ã¨ giÃ  stato inizializzato
+                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
                     when S0 =>
                         o_en <= '1';        -- leggo M(0)
                         mux_pc_sel <= '0';
-                        pc_load <= '1';     -- PC=1
-                    when S1 =>              -- PC=2
+                        pc_load <= '1';     -- PC=1, ADDR=0
+                    when S1 =>
                         o_en <= '1';        --  leggo M(1)
-                        pc_load <= '1';
+                        mux_pc_sel <= '0';
+                        pc_load <= '1';     -- PC=2, ADDR=1
                         in_load <= '1';     -- carico M(0)
                         mux_dim_sel <= '0';
                         dim_load <= '1';    -- DIM=1 temporaneamente
                     when S2 =>
-                        o_en <= '0';
+                        o_en <= '1';
                         in_load <= '1';     -- carico M(1)
-                        pc_load <= '0';     -- PC rimane 2
+                        pc_load <= '1';     -- PC rimane 2 -- PROVA: 1->0
                         pc_iniz_load <= '1';    -- carico PC0=PC=2
                         mux_dim_sel <= '1';     -- apro il canale tra multiply e dim e carico DIM=M(0)
                         dim_load <= '1';    -- DIM=M(0) temporaneamente
                     when S3 =>
                         mux_dim_sel <= '1';
-                        pc_load <= '1';
+                        pc_load <= '0';     -- PROVA: 1->0
                         dim_load <= '1';    -- carico DIM=M(0)*M(1)
                         in_load <= '1';
                         o_en <= '1';
@@ -480,6 +491,7 @@ begin
                         cont_load <= '1';
                         mux_compare_sel <= '1';
                     when S6 =>              -- lascio che nel modulo MAX/MIN venga confrontato anche l'ultimo pixel
+                        d_sel <= "01"; --
                         cont_load <= '0';
                     when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
                         o_en <= '0';
@@ -515,7 +527,7 @@ begin
                         pc_load <= '0';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ã¨ giÃ  l'indirizzo del primo byte della prossima immagine
+                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
                         o_en <= '0';
                         i_we <= '0';
                         o_we <= '0';
@@ -533,7 +545,7 @@ begin
                 
 -- CODICE 1                
 --                case current_state is
---                    when RESET_STATE =>     -- non cambio nulla, tutto Ã¨ giÃ  stato inizializzato
+--                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
 --                    when STATO_DI_PROVA =>
 --                        pc_load <= '1'; -- PC=1
 --                    when S1 =>              -- leggo da memoria il primo byte
@@ -593,7 +605,7 @@ begin
 --                        pc_load <= '0';
 --                        mux_cont_sel <= '1';
 --                        cont_load <= '1';
---                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ã¨ giÃ  l'indirizzo del primo byte della prossima immagine
+--                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
 --                        o_en <= '0';
 --                        i_we <= '0';
 --                        in_load <= '0';
