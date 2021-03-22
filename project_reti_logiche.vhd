@@ -105,7 +105,7 @@ begin
             dim_reg <= sixteen_bit_zero;
             counter_reg <= sixteen_bit_zero;
             max_reg <= eight_bit_zero;
-            min_reg <= eight_bit_zero;
+            min_reg <= "11111111"; --eight_bit_zero;
             delta_reg <= eight_bit_zero;
             shift_lvl_reg <= "0000";
             temp_reg <= sixteen_bit_zero;
@@ -141,12 +141,11 @@ begin
             end if;
             
             -- segnale zero
-            if(counter_reg = "0000000000000001") then
+            if(counter_reg = "0000000000000001" or dim_reg = "0000000000000001") then
                 o_zero <= '1';
+            else
+                o_zero <= '0';
             end if;
---            if( (dim_reg = "00000000000000000001") or (counter_reg - "0000000000000001" = "0000000000000000") ) then
---                o_zero <= '1';
---            end if;
             
             --------------------- uscite demux ----------------------------
             if(d_sel = "00") then -- CASO 00
@@ -175,11 +174,11 @@ begin
 --                    end if;
                     
                 elsif(mux_compare_sel = '1') then
-                    if(in_reg > max_reg) then
-                        max_reg <= in_reg;
-                    end if;
                     if(in_reg < min_reg) then
                         min_reg <= in_reg;
+                    end if;
+                    if(in_reg > max_reg) then
+                        max_reg <= in_reg;
                     end if;
                 end if;
             --
@@ -370,7 +369,7 @@ begin
                 if (i_start = '1') then
                     next_state <= S0;
                 end if;
-            when S0 =>  --inizializzo PC all'indirizzo zero
+            when S0 =>
                 next_state <= S1;
             when S1 =>
                 next_state <= S2;
@@ -378,20 +377,20 @@ begin
                 next_state <= S3;
             when S3 =>
                 next_state <= S4;
-            when S4 =>                  -- inizio scansione per trovare MIN e MAX
+            when S4 =>
                 if o_zero = '1' then    -- caso DIM=1
-                    next_state <= S7;
+                    next_state <= S15;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>1
                 else                    -- caso DIM>1
                     next_state <= S5;
                 end if;
             when S5 =>
-                if o_zero = '1' then    -- fine scansione
+                next_state <= S6;
+            when S6 =>
+                if o_zero = '0' then
                     next_state <= S6;
-                else                    -- scansione ancora in corso
-                    next_state <= S5;
+                else
+                    next_state <= S7;
                 end if;
-            when S6 =>                  -- scansione completata, MAX e MIN trovati, calcolo DELTA
-                next_state <= S7;
             when S7 =>
                 next_state <= S8;
             when S8 =>
@@ -403,29 +402,72 @@ begin
             when S11 =>
                 next_state <= S12;
             when S12 =>
-                if o_zero = '1' then    -- computazione e scrittura completata per ogni pixel
-                    next_state <= S14;
-                else                    -- passa al pixel successivo
-                    next_state <= S13;
-                end if;
-            when S13 =>                 
-                next_state <= S9;
-            when S14 =>                 
-                if i_start = '1' then
-                    next_state <= S14;    -- deve aspettare che si abbassi start prima di alzare done in S15
-                else
-                    next_state <= S15;
-                end if;
-            when S15 =>              -- stato finale in attesa di nuovo start
-                if i_start = '1' then
-                    next_state <= S0;    -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
-                else
-                    next_state <= S15;
-                end if;
+            when S13 =>
+            when S14 =>
+            when S15 =>
+        
+-- VECCHIA FSM
+--            when RESET_STATE =>
+--                if (i_start = '1') then
+--                    next_state <= S0;
+--                end if;
+--            when S0 =>  --inizializzo PC all'indirizzo zero
+--                next_state <= S1;
+--            when S1 =>
+--                next_state <= S2;
+--            when S2 =>
+--                next_state <= S3;
+--            when S3 =>
+--                next_state <= S4;
+--            when S4 =>                  -- inizio scansione per trovare MIN e MAX
+--                if o_zero = '1' then    -- caso DIM=1
+--                    next_state <= S7;
+--                else                    -- caso DIM>1
+--                    next_state <= S5;
+--                end if;
+--            when S5 =>
+--                if o_zero = '1' then    -- fine scansione
+--                    next_state <= S6;
+--                else                    -- scansione ancora in corso
+--                    next_state <= S5;
+--                end if;
+--            when S6 =>                  -- scansione completata, MAX e MIN trovati, calcolo DELTA
+--                next_state <= S7;
+--            when S7 =>
+--                next_state <= S8;
+--            when S8 =>
+--                next_state <= S9;
+--            when S9 =>
+--                next_state <= S10;
+--            when S10 =>
+--                next_state <= S11;
+--            when S11 =>
+--                next_state <= S12;
+--            when S12 =>
+--                if o_zero = '1' then    -- computazione e scrittura completata per ogni pixel
+--                    next_state <= S14;
+--                else                    -- passa al pixel successivo
+--                    next_state <= S13;
+--                end if;
+--            when S13 =>                 
+--                next_state <= S9;
+--            when S14 =>                 
+--                if i_start = '1' then
+--                    next_state <= S14;    -- deve aspettare che si abbassi start prima di alzare done in S15
+--                else
+--                    next_state <= S15;
+--                end if;
+--            when S15 =>              -- stato finale in attesa di nuovo start
+--                if i_start = '1' then
+--                    next_state <= S0;    -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
+--                else
+--                    next_state <= S15;
+--                end if;
         end case;
     end process;
             
     process(current_state)      -- gestisce i segnali degli stati della fsm
+-- NUOVA FSM
             begin
                 -- inizializzazione dei segnali
                 pc_load <= '0';
@@ -433,7 +475,7 @@ begin
                 in_load <= '0';
                 dim_load <= '0';
                 cont_load <= '0';
-                -- delta_load <= '0';   --  inutile
+                delta_load <= '0';   --  forse inutile
                 shift_lvl_load <= '0';
                 temp_load <= '0';
                 new_value_load <= '0';
@@ -442,84 +484,94 @@ begin
                 mux_cont_sel <= '0';
                 mux_compare_sel <= '0';
                 mux_pc_sel <= '0';
-                o_en <= '0';    -- mandato direttamente alla memoria
+                o_en <= '0';    -- mandato alla memoria
                 i_we <= '0';    -- mandato al datapath
-                o_we <= '0';
+                o_we <= '0';    -- mandato alla memoria
                 o_done <= '0';
                 
                 case current_state is
                     when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
                     when S0 =>
-                        o_en <= '1';        -- leggo M(0)
+                    -- leggo M(0), PC++
+                        o_en <= '1';
                         mux_pc_sel <= '0';
                         pc_load <= '1';     -- PC=1, ADDR=0
                     when S1 =>
-                        o_en <= '1';        --  leggo M(1)
+                    -- carico M(0), leggo M(1), PC++
+                    -- carico DIM=1 temporaneamente
+                        o_en <= '1';
                         mux_pc_sel <= '0';
                         pc_load <= '1';     -- PC=2, ADDR=1
-                        in_load <= '1';     -- carico M(0)
-                        mux_dim_sel <= '0';
-                        dim_load <= '1';    -- DIM=1 temporaneamente
-                    when S2 =>
-                        o_en <= '1';
-                        in_load <= '1';     -- carico M(1)
-                        pc_load <= '1';     -- PC rimane 2 -- PROVA: 1->0
-                        pc_iniz_load <= '1';    -- carico PC0=PC=2
-                        mux_dim_sel <= '1';     -- apro il canale tra multiply e dim e carico DIM=M(0)
-                        dim_load <= '1';    -- DIM=M(0) temporaneamente
-                    when S3 =>
-                        mux_dim_sel <= '1';
-                        pc_load <= '0';     -- PROVA: 1->0
-                        dim_load <= '1';    -- carico DIM=M(0)*M(1)
                         in_load <= '1';
-                        o_en <= '1';
-                    when S4 =>              -- indirizzo il primo byte letto nel modulo MIN/MAX e inizializzo il contatore
-                        in_load <= '0';
-                        d_sel <= "01";
+                        mux_dim_sel <= '0';
+                        dim_load <= '1';
+                    when S2 =>
+                    -- non leggo da memoria, carico M(1), carico PC0=PC
+                    -- carico DIM=M(0) temporaneamente
+                        o_en <= '0';
+                        in_load <= '1';
                         mux_pc_sel <= '0';
+                        pc_load <= '0';     -- PC=2, ADDR=2
+                        pc_iniz_load <= '1';    -- carico PC0=PC=2
+                        mux_dim_sel <= '1';
+                        dim_load <= '1';
+                    when S3 =>
+                    -- carico il valore finale DIM=M(0)*M(1)
+                        mux_dim_sel <= '1';
                         pc_load <= '0';
+                        pc_iniz_load <= '0';
+                        dim_load <= '1';
+                        in_load <= '0';
+                        o_en <= '0';
+                    when S4 =>
+                    -- leggo M(2), carico CONT=DIM-1, PC++ 
                         mux_cont_sel <= '0';
                         cont_load <= '1';
-                        mux_compare_sel <= '0';
-                    when S5 =>              -- leggo e confronto i valori di tutti i pixel rimanenti
+                        o_en <= '1';
+                        pc_load <= '1';     -- PC=3, ADDR=2
+                        in_load <= '0';                        
+                    when S5 =>
+                    -- solo se in S4 zero=0 (DIM!=1)
+                    -- carico MIN=MAX=M(2), carico M(2), leggo M(3), PC++, CONT--
+                        mux_cont_sel <= '1';
+                        cont_load <= '1';
                         o_en <= '1';
                         in_load <= '1';
+                        pc_load <= '1';
+                        mux_compare_sel <= '0';
+                    when S6 =>
+                    -- ciclo finchè non si alza zero (CONT-1==0)
+                    -- carico M(3) o in generale il valore letto il ciclo prima, PC++, CONT--
+                    -- indirizzo i valori caricati verso il modulo min/max
                         d_sel <= "01";
-                        mux_pc_sel <= '0';
+                        o_en <= '1';
+                        in_load <= '1';
+                        mux_compare_sel <= '1';
                         pc_load <= '1';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
+                    when S7 =>
+                    --
+                        o_en <= '0';
+                        in_load <= '1';
+                        d_sel <= "01";
+                        mux_pc_sel <= '1';
+                        pc_load <= '1';     --PC=PC0
                         mux_compare_sel <= '1';
-                    when S6 =>              -- lascio che nel modulo MAX/MIN venga confrontato anche l'ultimo pixel
-                        d_sel <= "01"; --
-                        cont_load <= '0';
-                    when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
+                    when S8 =>
+                        d_sel <= "01";
+                        mux_compare_sel <= '1';
                         o_en <= '0';
                         in_load <= '0';
-                        shift_lvl_load <= '1';
-                        mux_pc_sel <= '1';
-                        pc_load <= '1';
-                    when S8 =>              -- resetto il contatore a DIM
-                        o_en <= '1';
-                        shift_lvl_load <= '0';
-                        mux_cont_sel <= '0';
                     when S9 =>
-                        in_load <= '1';
-                        o_en <= '0';
+                        
                     when S10 =>
-                        d_sel <= "10";
-                        temp_load <= '1';
+                        
                     when S11 =>
-                        temp_load <= '0';
-                        new_value_load <= '1';
+                        
                     when S12 =>
-                        i_we <= '1';
-                        o_we <= '1';
-                        o_en <= '1';
-                        mux_pc_sel <= '0';
-                        pc_load <= '1';
-                        new_value_load <= '0';
-                     when S13 =>
+                        
+                    when S13 =>
                         i_we <= '0';
                         o_we <= '0';
                         o_en <= '1';
@@ -542,72 +594,114 @@ begin
                     when S15 =>             -- quando si abbassa START posso riabbassare DONE
                         o_done <= '0';
                 end case;
+
+
+-- CODICE FSM VECCHIA
+--            begin
+--                -- inizializzazione dei segnali
+--                pc_load <= '0';
+--                pc_iniz_load <= '0';
+--                in_load <= '0';
+--                dim_load <= '0';
+--                cont_load <= '0';
+--                -- delta_load <= '0';   --  inutile
+--                shift_lvl_load <= '0';
+--                temp_load <= '0';
+--                new_value_load <= '0';
+--                d_sel <= "00";
+--                mux_dim_sel <= '0';
+--                mux_cont_sel <= '0';
+--                mux_compare_sel <= '0';
+--                mux_pc_sel <= '0';
+--                o_en <= '0';    -- mandato direttamente alla memoria
+--                i_we <= '0';    -- mandato al datapath
+--                o_we <= '0';
+--                o_done <= '0';
                 
--- CODICE 1                
 --                case current_state is
 --                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
---                    when STATO_DI_PROVA =>
---                        pc_load <= '1'; -- PC=1
---                    when S1 =>              -- leggo da memoria il primo byte
---                        o_en <= '1';
---                        pc_load <= '1';
---                        in_load <= '1';
+--                    when S0 =>
+--                        o_en <= '1';        -- leggo M(0)
+--                        mux_pc_sel <= '0';
+--                        pc_load <= '1';     -- PC=1, ADDR=0
+--                    when S1 =>
+--                        o_en <= '1';        --  leggo M(1)
+--                        mux_pc_sel <= '0';
+--                        pc_load <= '1';     -- PC=2, ADDR=1
+--                        in_load <= '1';     -- carico M(0)
+--                        mux_dim_sel <= '0';
 --                        dim_load <= '1';    -- DIM=1 temporaneamente
---                    when S2 =>              -- leggo da memoria il secondo byte
+--                    when S2 =>
+--                        o_en <= '1';
+--                        in_load <= '1';     -- carico M(1)
+--                        pc_load <= '1';     -- PC rimane 2
+--                        pc_iniz_load <= '1';    -- carico PC0=PC=2
+--                        mux_dim_sel <= '1';     -- apro il canale tra multiply e dim e carico DIM=M(0)
+--                        dim_load <= '1';    -- DIM=M(0) temporaneamente
+--                    when S3 =>
 --                        mux_dim_sel <= '1';
---                    when S3 =>              -- calcolo la dimensione, leggo il primo pixel di cui salvo l'indirizzo in PC0
---                        pc_iniz_load <= '1';
 --                        pc_load <= '0';
+--                        dim_load <= '1';    -- carico DIM=M(0)*M(1)
+--                        in_load <= '1';
+--                        o_en <= '1';
 --                    when S4 =>              -- indirizzo il primo byte letto nel modulo MIN/MAX e inizializzo il contatore
---                        o_en <= '0';
 --                        in_load <= '0';
---                        pc_iniz_load <= '0';
---                        pc_load <= '1';
---                        cont_load <= '1';
 --                        d_sel <= "01";
+--                        mux_pc_sel <= '0';
+--                        pc_load <= '0';
+--                        mux_cont_sel <= '0';
+--                        cont_load <= '1';
+--                        mux_compare_sel <= '0';
 --                    when S5 =>              -- leggo e confronto i valori di tutti i pixel rimanenti
 --                        o_en <= '1';
 --                        in_load <= '1';
---                        mux_compare_sel <= '1';
+--                        d_sel <= "01";
+--                        mux_pc_sel <= '0';
+--                        pc_load <= '1';
 --                        mux_cont_sel <= '1';
+--                        cont_load <= '1';
+--                        mux_compare_sel <= '1';
 --                    when S6 =>              -- lascio che nel modulo MAX/MIN venga confrontato anche l'ultimo pixel
---                        o_en <= '0';
---                        in_load <= '0';
+--                        d_sel <= "01"; --
 --                        cont_load <= '0';
 --                    when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
+--                        o_en <= '0';
+--                        in_load <= '0';
+--                        shift_lvl_load <= '1';
 --                        mux_pc_sel <= '1';
 --                        pc_load <= '1';
---                        shift_lvl_load <= '1';
---                        cont_load <= '0';
 --                    when S8 =>              -- resetto il contatore a DIM
 --                        o_en <= '1';
---                        in_load <= '1';
---                        pc_load <= '0';
 --                        shift_lvl_load <= '0';
 --                        mux_cont_sel <= '0';
---                    when S9 =>              -- calcolo il valore temporaneo
---                        o_en <= '0';
+--                    when S9 =>
 --                        in_load <= '1';
+--                        o_en <= '0';
+--                    when S10 =>
+--                        d_sel <= "10";
 --                        temp_load <= '1';
---                        cont_load <= '0';
---                    when S10 =>             -- definisco il valore finale da scrivere
+--                    when S11 =>
 --                        temp_load <= '0';
 --                        new_value_load <= '1';
---                    when S11 =>             -- scrivo in memoria il valore calcolato all'indirizzo di memoria a distanza DIM da quello del pixel letto
---                        o_en <= '1';
+--                    when S12 =>
 --                        i_we <= '1';
+--                        o_we <= '1';
+--                        o_en <= '1';
 --                        mux_pc_sel <= '0';
 --                        pc_load <= '1';
 --                        new_value_load <= '0';
---                    when S12 =>             -- leggo il byte successivo e aggiorno il contatore
+--                     when S13 =>
 --                        i_we <= '0';
---                        in_load <= '1';
+--                        o_we <= '0';
+--                        o_en <= '1';
+--                        mux_pc_sel <= '0';
 --                        pc_load <= '0';
 --                        mux_cont_sel <= '1';
 --                        cont_load <= '1';
---                    when S13 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
+--                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
 --                        o_en <= '0';
 --                        i_we <= '0';
+--                        o_we <= '0';
 --                        in_load <= '0';
 --                        pc_load <= '0';
 --                        shift_lvl_load <= '0';
@@ -616,7 +710,7 @@ begin
 --                        new_value_load <= '0';
 --                        cont_load <= '0';
 --                        o_done <= '1';
---                    when S14 =>             -- quando si abbassa START posso riabbassare DONE
+--                    when S15 =>             -- quando si abbassa START posso riabbassare DONE
 --                        o_done <= '0';
 --                end case;
     end process;
