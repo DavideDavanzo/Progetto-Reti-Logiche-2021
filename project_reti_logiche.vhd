@@ -105,6 +105,7 @@ begin
             pc_reg <= sixteen_bit_zero;
             pc_iniz_reg <= sixteen_bit_zero;
             dim_reg <= sixteen_bit_zero;
+            dim_zero_reg <= "11111111";
             counter_reg <= sixteen_bit_zero;
             max_reg <= eight_bit_zero;
             min_reg <= "11111111"; --eight_bit_zero;
