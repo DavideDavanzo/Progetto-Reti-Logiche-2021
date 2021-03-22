@@ -71,6 +71,7 @@ entity datapath is
         -- uscite
         o_data : out std_logic_vector (7 downto 0); -- esce per andare in memoria
         o_address: out std_logic_vector(15 downto 0); -- indirizzo attuale
+        o_dim_zero: out std_logic; -- segnale di fine calcolo dimensione
         o_zero: out std_logic; -- =1 <==> il contatore raggiunge lo 0
         o_done : out std_logic
     );
@@ -82,6 +83,7 @@ architecture Behavioral of datapath is
     signal pc_reg: std_logic_vector(15 downto 0);
     signal pc_iniz_reg: std_logic_vector(15 downto 0);
     signal dim_reg: std_logic_vector(15 downto 0);
+    signal dim_zero_reg: std_logic_vector (7 downto 0);
     signal counter_reg: std_logic_vector(15 downto 0);
     signal max_reg: std_logic_vector(7 downto 0);
     signal min_reg: std_logic_vector(7 downto 0);
@@ -151,10 +153,20 @@ begin
             if(d_sel = "00") then -- CASO 00
                 if(dim_load = '1') then
                     if(mux_dim_sel = '0') then
-                        dim_reg <= "0000000000000001";
+                        dim_reg <= sixteen_bit_zero;
                     elsif(mux_dim_sel = '1') then
-                        dim_reg <= std_logic_vector(unsigned(i_data) * unsigned(dim_reg(7 downto 0)));
+                        dim_reg <= dim_reg + (eight_bit_zero & in_reg);
                     end if; 
+                end if;
+                if(dim_zero_load = '1') then
+                    if(mux_dim_sel = '0') then
+                        dim_zero_reg <= in_reg;
+                    elsif(mux_dim_sel = '1') then
+                        dim_zero_reg <= dim_zero_reg - "00000001";
+                    end if;
+                end if;
+                if(dim_zero_reg - "00000001" = eight_bit_zero) then
+                    o_dim_zero <= '1';
                 end if;
             -- 
             --   
@@ -184,7 +196,7 @@ begin
             --
             --    
             elsif(d_sel = "10") then -- CASO 10
-                sign_extension <= "00000000" & (in_reg - min_reg);      -- Ë come se ci fosse un registro in pi˘, mi sa che cosÏ aggiungiamo cicli di clk
+                sign_extension <= "00000000" & (in_reg - min_reg);      -- √® come se ci fosse un registro in pi√π, mi sa che cos√¨ aggiungiamo cicli di clk
             end if;
             ---------------------------------------------------------------
             
@@ -296,6 +308,7 @@ architecture Behavioral of project_reti_logiche is
             -- uscite
             o_data : out std_logic_vector (7 downto 0); 
             o_address: out std_logic_vector(15 downto 0);
+            o_dim_zero: out std_logic;
             o_zero: out std_logic;
             o_done : out std_logic
         );
@@ -322,6 +335,7 @@ architecture Behavioral of project_reti_logiche is
     signal shift_lvl_load: std_logic;
     signal temp_load: std_logic;
     signal new_value_load: std_logic;
+    signal o_dim_zero: std_logic;
     signal o_zero: std_logic;
 
 begin
@@ -348,6 +362,7 @@ begin
         new_value_load,
         o_data,
         o_address,
+        o_dim_zero,
         o_zero,
         o_done
     );
@@ -459,7 +474,7 @@ begin
 --                end if;
 --            when S15 =>              -- stato finale in attesa di nuovo start
 --                if i_start = '1' then
---                    next_state <= S0;    -- non torna in RESET_STATE perchË il PC non deve essere resettato all'indirizzo 0
+--                    next_state <= S0;    -- non torna in RESET_STATE perch√® il PC non deve essere resettato all'indirizzo 0
 --                else
 --                    next_state <= S15;
 --                end if;
@@ -490,7 +505,7 @@ begin
                 o_done <= '0';
                 
                 case current_state is
-                    when RESET_STATE =>     -- non cambio nulla, tutto Ë gi‡ stato inizializzato
+                    when RESET_STATE =>     -- non cambio nulla, tutto √® gi√† stato inizializzato
                     when S0 =>
                     -- leggo M(0), PC++
                         o_en <= '1';
@@ -540,7 +555,7 @@ begin
                         pc_load <= '1';
                         mux_compare_sel <= '0';
                     when S6 =>
-                    -- ciclo finchË non si alza zero (CONT-1==0)
+                    -- ciclo finch√® non si alza zero (CONT-1==0)
                     -- carico M(3) o in generale il valore letto il ciclo prima, PC++, CONT--
                     -- indirizzo i valori caricati verso il modulo min/max
                         d_sel <= "01";
@@ -579,7 +594,7 @@ begin
                         pc_load <= '0';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ë gi‡ l'indirizzo del primo byte della prossima immagine
+                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC √® gi√† l'indirizzo del primo byte della prossima immagine
                         o_en <= '0';
                         i_we <= '0';
                         o_we <= '0';
@@ -619,7 +634,7 @@ begin
 --                o_done <= '0';
                 
 --                case current_state is
---                    when RESET_STATE =>     -- non cambio nulla, tutto Ë gi‡ stato inizializzato
+--                    when RESET_STATE =>     -- non cambio nulla, tutto √® gi√† stato inizializzato
 --                    when S0 =>
 --                        o_en <= '1';        -- leggo M(0)
 --                        mux_pc_sel <= '0';
@@ -698,7 +713,7 @@ begin
 --                        pc_load <= '0';
 --                        mux_cont_sel <= '1';
 --                        cont_load <= '1';
---                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC Ë gi‡ l'indirizzo del primo byte della prossima immagine
+--                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC √® gi√† l'indirizzo del primo byte della prossima immagine
 --                        o_en <= '0';
 --                        i_we <= '0';
 --                        o_we <= '0';
