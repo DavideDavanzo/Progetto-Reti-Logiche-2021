@@ -53,6 +53,7 @@ entity datapath is
         -- modulo dimensione
         mux_dim_sel: in std_logic; -- seleziona il secondo operando da moltiplicare
         dim_load: in std_logic; -- load del registro dim
+        dim_zero_load: in std_logic; -- load del registro dim_zero
         mux_cont_sel: in std_logic; -- decide cosa far passare prima del sottrattore
         cont_load: in std_logic; -- load del registro cont
         -- modulo pc
@@ -92,7 +93,6 @@ architecture Behavioral of datapath is
     signal temp_reg: std_logic_vector(15 downto 0);
     signal new_value_reg: std_logic_vector(7 downto 0);
     signal sign_extension: std_logic_vector(15 downto 0);
-    signal log_value: std_logic_vector(3 downto 0);
     
 begin
 
@@ -105,14 +105,15 @@ begin
             pc_reg <= sixteen_bit_zero;
             pc_iniz_reg <= sixteen_bit_zero;
             dim_reg <= sixteen_bit_zero;
-            dim_zero_reg <= "11111111";
+            dim_zero_reg <= eight_bit_zero;
             counter_reg <= sixteen_bit_zero;
             max_reg <= eight_bit_zero;
-            min_reg <= "11111111"; --eight_bit_zero;
+            min_reg <= "11111111";
             delta_reg <= eight_bit_zero;
             shift_lvl_reg <= "0000";
             temp_reg <= sixteen_bit_zero;
             new_value_reg <= eight_bit_zero; 
+            sign_extension <= sixteen_bit_zero;
              
         elsif(i_clk'event and i_clk='1') then
             
@@ -121,7 +122,7 @@ begin
                 if(mux_pc_sel = '1') then
                     pc_reg <= pc_iniz_reg;
                 elsif(mux_pc_sel = '0') then
-                    pc_reg <= pc_reg + "0000000000000001"; -- era solo +1
+                    pc_reg <= pc_reg + "0000000000000001";
                 end if;
             end if;
             
@@ -151,41 +152,35 @@ begin
             end if;
             
             --------------------- uscite demux ----------------------------
-            if(d_sel = "00") then -- CASO 00
-                if(dim_load = '1') then
-                    if(mux_dim_sel = '0') then
-                        dim_reg <= sixteen_bit_zero;
-                    elsif(mux_dim_sel = '1') then
-                        dim_reg <= dim_reg + (eight_bit_zero & in_reg);
-                    end if; 
-                end if;
-                if(dim_zero_load = '1') then
-                    if(mux_dim_sel = '0') then
-                        dim_zero_reg <= in_reg;
-                    elsif(mux_dim_sel = '1') then
-                        dim_zero_reg <= dim_zero_reg - "00000001";
-                    end if;
-                end if;
-                if(dim_zero_reg - "00000001" = eight_bit_zero) then
+             if(d_sel = "00") then -- CASO 00
+                if(mux_dim_sel = '0') then
+		          if(dim_zero_load = '1') then
+			         dim_zero_reg <= in_reg - "00000001";
+		          end if;
+		          if(in_reg - "00000001" = 0) then
+		              o_dim_zero <= '1';
+		          else
+		              o_dim_zero <= '0';
+		          end if;
+	           elsif(mux_dim_sel = '1') then
+		          if(dim_zero_load = '1') then
+			         dim_zero_reg <= dim_zero_reg - "00000001";
+		          end if;
+		          if(dim_load ='1') then
+			         dim_reg <= (eight_bit_zero & in_reg) + dim_reg;
+		          end if;
+		          if(dim_zero_reg - "00000001" = eight_bit_zero) then
                     o_dim_zero <= '1';
-                end if;
+                  else
+                    o_dim_zero <= '0';
+                  end if;
+	           end if;                
             -- 
             --   
             elsif(d_sel = "01") then -- CASO 01
                 if(mux_compare_sel = '0') then
                     max_reg <= in_reg;
                     min_reg <= in_reg;
---                    if(in_reg > 0) then
---                        max_reg <= in_reg;
---                    else
---                        max_reg <= eight_bit_zero;
---                    end if;
---                    if(in_reg < "11111111") then
---                        min_reg <= in_reg;
---                    else
---                        min_reg <= "11111111";
---                    end if;
-                    
                 elsif(mux_compare_sel = '1') then
                     if(in_reg < min_reg) then
                         min_reg <= in_reg;
@@ -197,7 +192,11 @@ begin
             --
             --    
             elsif(d_sel = "10") then -- CASO 10
-                sign_extension <= "00000000" & (in_reg - min_reg);      -- è come se ci fosse un registro in più, mi sa che così aggiungiamo cicli di clk
+                sign_extension <= "00000000" & (in_reg - min_reg);
+                -- creazione di temp
+                if(temp_load = '1') then
+                    temp_reg <= std_logic_vector( shift_left( unsigned(sign_extension), to_integer(unsigned(shift_lvl_reg))));
+                end if;
             end if;
             ---------------------------------------------------------------
             
@@ -206,33 +205,28 @@ begin
                 delta_reg <= max_reg - min_reg;
             end if;
             
-            if(delta_reg = 0) then
-                log_value <= "0000";
-            elsif(delta_reg = 1 or delta_reg = 2) then
-                log_value <= "0001";
-            elsif(delta_reg > 2 and delta_reg < 7) then
-                log_value <= "0010";
-            elsif(delta_reg > 6 and delta_reg < 15) then
-                log_value <= "0011";
-            elsif(delta_reg > 14 and delta_reg  < 31) then
-                log_value <= "0100";
-            elsif(delta_reg > 30 and delta_reg  < 63) then
-                log_value <= "0101";
-            elsif(delta_reg > 62 and delta_reg  < 127) then
-                log_value <= "0110";
-            elsif(delta_reg > 126 and delta_reg  < 255) then
-                log_value <= "0111";
-            elsif(delta_reg = 255) then
-                log_value <= "1000";
-            end if;
+            
  
             if(shift_lvl_load = '1') then
-                shift_lvl_reg <= 8 - log_value;
-            end if;
-            
-            -- creazione di temp
-            if(temp_load = '1') then
-                temp_reg <= std_logic_vector(shift_left(unsigned(sign_extension), to_integer(unsigned(shift_lvl_reg))));
+                if(delta_reg = 0) then
+                    shift_lvl_reg <= "1000" - "0000";
+                elsif(delta_reg = "00000001" or delta_reg = "00000010") then
+                    shift_lvl_reg <= "1000" - "0001";
+                elsif(delta_reg > "00000010" and delta_reg < "00000111") then
+                    shift_lvl_reg <= "1000" - "0010";
+                elsif(delta_reg > "00000110" and delta_reg < "00001111") then
+                    shift_lvl_reg <= "1000" - "0011";
+                elsif(delta_reg > "00001110" and delta_reg  < "00011111") then
+                    shift_lvl_reg <= "1000" - "0100";
+                elsif(delta_reg > "00011110" and delta_reg  < "00111111") then
+                    shift_lvl_reg <= "1000" - "0101";
+                elsif(delta_reg > "00111110" and delta_reg  < "01111111") then
+                    shift_lvl_reg <= "1000" - "0110";
+                elsif(delta_reg > "01111110" and delta_reg  < "11111111") then
+                    shift_lvl_reg <= "1000" - "0111";
+                elsif(delta_reg = "11111111") then
+                    shift_lvl_reg <= "1000" - "1000";
+                end if;
             end if;
             
             -- new value
@@ -291,6 +285,7 @@ architecture Behavioral of project_reti_logiche is
             -- modulo dimensione
             mux_dim_sel: in std_logic;
             dim_load: in std_logic;
+            dim_zero_load: in std_logic;
             mux_cont_sel: in std_logic;
             cont_load: in std_logic;
             -- modulo pc
@@ -315,8 +310,8 @@ architecture Behavioral of project_reti_logiche is
         );
     end component;
     
-    type S is (RESET_STATE, S0, S1, S2, S3, S4, S5, S6, S7, S8, 
-               S9, S10, S11, S12, S13, S14, S15);
+    type S is (RESET_STATE, S0, S1, S2, S3_0, S3_1, S4, S5, S6, S7, S8, 
+               S9, S10, S11, S12, S13, S14, S15, S16, S17, S18, S19, S20, S_POZZO);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -325,6 +320,7 @@ architecture Behavioral of project_reti_logiche is
     signal i_we: std_logic;
     signal mux_dim_sel: std_logic;
     signal dim_load: std_logic;
+    signal dim_zero_load: std_logic;
     signal mux_cont_sel: std_logic;
     signal cont_load: std_logic;
     signal mux_pc_sel: std_logic;
@@ -350,6 +346,7 @@ begin
         i_we,
         mux_dim_sel,
         dim_load,
+        dim_zero_load,
         mux_cont_sel,
         cont_load,
         mux_pc_sel,
@@ -377,7 +374,7 @@ begin
         end if;
     end process;
 
-    process(current_state, i_start, o_zero)
+    process(current_state, i_start, o_zero, o_dim_zero)
     begin
         next_state <= current_state;
         case current_state is
@@ -390,17 +387,31 @@ begin
             when S1 =>
                 next_state <= S2;
             when S2 =>
-                next_state <= S3;
-            when S3 =>
-                next_state <= S4;
+                if o_dim_zero = '1' then
+                    next_state <= S3_1;
+                else
+                    next_state <= S3_0;
+                end if;
+            when S3_0 =>
+                if o_dim_zero = '1' then
+                    next_state <= S4;
+                else
+                    next_state <= S3_0;
+                end if;
+            when S3_1 =>
+                next_state <= S4;  
             when S4 =>
                 if o_zero = '1' then    -- caso DIM=1
-                    next_state <= S15;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>1
+                    next_state <= S_POZZO;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>1
                 else                    -- caso DIM>1
                     next_state <= S5;
                 end if;
             when S5 =>
-                next_state <= S6;
+                if o_zero = '1' then    -- caso DIM=2
+                    next_state <= S_POZZO;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>2
+                else
+                    next_state <= S6;
+                end if;
             when S6 =>
                 if o_zero = '0' then
                     next_state <= S6;
@@ -418,78 +429,47 @@ begin
             when S11 =>
                 next_state <= S12;
             when S12 =>
+                next_state <= S13;
             when S13 =>
+                if o_zero = '0' then
+                    next_state <= S14;
+                elsif o_zero = '1' then
+                    next_state <= S19;
+                end if;
             when S14 =>
+                next_state <= S15;
             when S15 =>
-        
--- VECCHIA FSM
---            when RESET_STATE =>
---                if (i_start = '1') then
---                    next_state <= S0;
---                end if;
---            when S0 =>  --inizializzo PC all'indirizzo zero
---                next_state <= S1;
---            when S1 =>
---                next_state <= S2;
---            when S2 =>
---                next_state <= S3;
---            when S3 =>
---                next_state <= S4;
---            when S4 =>                  -- inizio scansione per trovare MIN e MAX
---                if o_zero = '1' then    -- caso DIM=1
---                    next_state <= S7;
---                else                    -- caso DIM>1
---                    next_state <= S5;
---                end if;
---            when S5 =>
---                if o_zero = '1' then    -- fine scansione
---                    next_state <= S6;
---                else                    -- scansione ancora in corso
---                    next_state <= S5;
---                end if;
---            when S6 =>                  -- scansione completata, MAX e MIN trovati, calcolo DELTA
---                next_state <= S7;
---            when S7 =>
---                next_state <= S8;
---            when S8 =>
---                next_state <= S9;
---            when S9 =>
---                next_state <= S10;
---            when S10 =>
---                next_state <= S11;
---            when S11 =>
---                next_state <= S12;
---            when S12 =>
---                if o_zero = '1' then    -- computazione e scrittura completata per ogni pixel
---                    next_state <= S14;
---                else                    -- passa al pixel successivo
---                    next_state <= S13;
---                end if;
---            when S13 =>                 
---                next_state <= S9;
---            when S14 =>                 
---                if i_start = '1' then
---                    next_state <= S14;    -- deve aspettare che si abbassi start prima di alzare done in S15
---                else
---                    next_state <= S15;
---                end if;
---            when S15 =>              -- stato finale in attesa di nuovo start
---                if i_start = '1' then
---                    next_state <= S0;    -- non torna in RESET_STATE perchè il PC non deve essere resettato all'indirizzo 0
---                else
---                    next_state <= S15;
---                end if;
+                next_state <= S16;
+            when S16 =>
+                next_state <= S17;
+            when S17 =>
+                next_state <= S18;
+            when S18 =>
+                if o_zero = '0' then
+                    next_state <= S14;
+                elsif o_zero = '1' then
+                    next_state <= S19;
+                end if;
+            when S19 =>
+                if i_start = '0' then
+                    next_state <= S20;
+                end if;
+            when S20 =>
+                if i_start = '1' then
+                    next_state <= S0;
+                end if;
+            when S_POZZO =>
         end case;
     end process;
             
     process(current_state)      -- gestisce i segnali degli stati della fsm
--- NUOVA FSM
             begin
                 -- inizializzazione dei segnali
                 pc_load <= '0';
                 pc_iniz_load <= '0';
                 in_load <= '0';
                 dim_load <= '0';
+                dim_zero_load <= '0';
                 cont_load <= '0';
                 delta_load <= '0';   --  forse inutile
                 shift_lvl_load <= '0';
@@ -506,7 +486,7 @@ begin
                 o_done <= '0';
                 
                 case current_state is
-                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
+                    when RESET_STATE =>     -- non cambio nulla, tutto � gi� stato inizializzato
                     when S0 =>
                     -- leggo M(0), PC++
                         o_en <= '1';
@@ -519,8 +499,6 @@ begin
                         mux_pc_sel <= '0';
                         pc_load <= '1';     -- PC=2, ADDR=1
                         in_load <= '1';
-                        mux_dim_sel <= '0';
-                        dim_load <= '1';
                     when S2 =>
                     -- non leggo da memoria, carico M(1), carico PC0=PC
                     -- carico DIM=M(0) temporaneamente
@@ -529,18 +507,34 @@ begin
                         mux_pc_sel <= '0';
                         pc_load <= '0';     -- PC=2, ADDR=2
                         pc_iniz_load <= '1';    -- carico PC0=PC=2
-                        mux_dim_sel <= '1';
-                        dim_load <= '1';
-                    when S3 =>
+                        mux_dim_sel <= '0';
+                        dim_zero_load <= '1';
+                        dim_load <= '0';
+                        d_sel <= "00";
+                    when S3_0 =>
                     -- carico il valore finale DIM=M(0)*M(1)
                         mux_dim_sel <= '1';
                         pc_load <= '0';
                         pc_iniz_load <= '0';
                         dim_load <= '1';
+                        dim_zero_load <= '1';
                         in_load <= '0';
                         o_en <= '0';
+                        d_sel <= "00";
+                    when S3_1 =>
+                    -- carico il valore finale DIM=M(0)*M(1)
+                        mux_dim_sel <= '1';
+                        pc_load <= '0';
+                        pc_iniz_load <= '0';
+                        dim_load <= '1';
+                        dim_zero_load <= '0';
+                        in_load <= '0';
+                        o_en <= '0';
+                        d_sel <= "00";
                     when S4 =>
-                    -- leggo M(2), carico CONT=DIM-1, PC++ 
+                    -- leggo M(2), carico CONT=DIM-1, PC++
+                        dim_load <= '0';
+                        dim_zero_load <= '0';
                         mux_cont_sel <= '0';
                         cont_load <= '1';
                         o_en <= '1';
@@ -548,7 +542,7 @@ begin
                         in_load <= '0';                        
                     when S5 =>
                     -- solo se in S4 zero=0 (DIM!=1)
-                    -- carico MIN=MAX=M(2), carico M(2), leggo M(3), PC++, CONT--
+                    -- carico MIN=MAX=M(2), carico M(2), leggo M(3), PC++, CONT--                        
                         mux_cont_sel <= '1';
                         cont_load <= '1';
                         o_en <= '1';
@@ -556,7 +550,7 @@ begin
                         pc_load <= '1';
                         mux_compare_sel <= '0';
                     when S6 =>
-                    -- ciclo finchè non si alza zero (CONT-1==0)
+                    -- ciclo finch� non si alza zero (CONT-1==0)
                     -- carico M(3) o in generale il valore letto il ciclo prima, PC++, CONT--
                     -- indirizzo i valori caricati verso il modulo min/max
                         d_sel <= "01";
@@ -573,6 +567,7 @@ begin
                         d_sel <= "01";
                         mux_pc_sel <= '1';
                         pc_load <= '1';     --PC=PC0
+                        cont_load <= '0';
                         mux_compare_sel <= '1';
                     when S8 =>
                         d_sel <= "01";
@@ -580,155 +575,50 @@ begin
                         o_en <= '0';
                         in_load <= '0';
                     when S9 =>
-                        
-                    when S10 =>
-                        
-                    when S11 =>
-                        
-                    when S12 =>
-                        
-                    when S13 =>
-                        i_we <= '0';
-                        o_we <= '0';
+                        delta_load <= '1';
                         o_en <= '1';
+                    when S10 =>
+                        shift_lvl_load <= '1';
+                        in_load <= '1';
+                    when S11 =>
+                        d_sel <= "10";
+                        temp_load <= '1';
+                    when S12 =>
+                        d_sel <= "10";
+                        new_value_load <= '1';
+                    when S13 =>
+                        d_sel <= "10";
+                        o_en <= '1';
+                        i_we <= '1';
+                        o_we <= '1';
                         mux_pc_sel <= '0';
-                        pc_load <= '0';
+                        pc_load <= '1';
+                    when S14 =>
+                        d_sel <= "10";
+                        o_en <= '1';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
-                        o_en <= '0';
-                        i_we <= '0';
-                        o_we <= '0';
-                        in_load <= '0';
-                        pc_load <= '0';
-                        shift_lvl_load <= '0';
-                        pc_iniz_load <= '0';
-                        temp_load <= '0';
-                        new_value_load <= '0';
-                        cont_load <= '0';
+                    when S15 =>
+                        d_sel <= "10";
+                        in_load <= '1';
+                    when S16 =>
+                        d_sel <= "10";
+                        temp_load <= '1';
+                    when S17 =>
+                        d_sel <= "10";
+                        new_value_load <= '1';
+                    when S18 =>
+                        d_sel <= "10";
+                        o_en <= '1';
+                        i_we <= '1';
+                        o_we <= '1';
+                        mux_pc_sel <= '0';
+                        pc_load <= '1';
+                        mux_cont_sel <= '1';
+                    when S19 =>
                         o_done <= '1';
-                    when S15 =>             -- quando si abbassa START posso riabbassare DONE
-                        o_done <= '0';
+                    when S20 =>
+                    when S_POZZO =>
                 end case;
-
-
--- CODICE FSM VECCHIA
---            begin
---                -- inizializzazione dei segnali
---                pc_load <= '0';
---                pc_iniz_load <= '0';
---                in_load <= '0';
---                dim_load <= '0';
---                cont_load <= '0';
---                -- delta_load <= '0';   --  inutile
---                shift_lvl_load <= '0';
---                temp_load <= '0';
---                new_value_load <= '0';
---                d_sel <= "00";
---                mux_dim_sel <= '0';
---                mux_cont_sel <= '0';
---                mux_compare_sel <= '0';
---                mux_pc_sel <= '0';
---                o_en <= '0';    -- mandato direttamente alla memoria
---                i_we <= '0';    -- mandato al datapath
---                o_we <= '0';
---                o_done <= '0';
-                
---                case current_state is
---                    when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
---                    when S0 =>
---                        o_en <= '1';        -- leggo M(0)
---                        mux_pc_sel <= '0';
---                        pc_load <= '1';     -- PC=1, ADDR=0
---                    when S1 =>
---                        o_en <= '1';        --  leggo M(1)
---                        mux_pc_sel <= '0';
---                        pc_load <= '1';     -- PC=2, ADDR=1
---                        in_load <= '1';     -- carico M(0)
---                        mux_dim_sel <= '0';
---                        dim_load <= '1';    -- DIM=1 temporaneamente
---                    when S2 =>
---                        o_en <= '1';
---                        in_load <= '1';     -- carico M(1)
---                        pc_load <= '1';     -- PC rimane 2
---                        pc_iniz_load <= '1';    -- carico PC0=PC=2
---                        mux_dim_sel <= '1';     -- apro il canale tra multiply e dim e carico DIM=M(0)
---                        dim_load <= '1';    -- DIM=M(0) temporaneamente
---                    when S3 =>
---                        mux_dim_sel <= '1';
---                        pc_load <= '0';
---                        dim_load <= '1';    -- carico DIM=M(0)*M(1)
---                        in_load <= '1';
---                        o_en <= '1';
---                    when S4 =>              -- indirizzo il primo byte letto nel modulo MIN/MAX e inizializzo il contatore
---                        in_load <= '0';
---                        d_sel <= "01";
---                        mux_pc_sel <= '0';
---                        pc_load <= '0';
---                        mux_cont_sel <= '0';
---                        cont_load <= '1';
---                        mux_compare_sel <= '0';
---                    when S5 =>              -- leggo e confronto i valori di tutti i pixel rimanenti
---                        o_en <= '1';
---                        in_load <= '1';
---                        d_sel <= "01";
---                        mux_pc_sel <= '0';
---                        pc_load <= '1';
---                        mux_cont_sel <= '1';
---                        cont_load <= '1';
---                        mux_compare_sel <= '1';
---                    when S6 =>              -- lascio che nel modulo MAX/MIN venga confrontato anche l'ultimo pixel
---                        d_sel <= "01"; --
---                        cont_load <= '0';
---                    when S7 =>              -- carico nel PC l'indirizzo PC0 del primo pixel
---                        o_en <= '0';
---                        in_load <= '0';
---                        shift_lvl_load <= '1';
---                        mux_pc_sel <= '1';
---                        pc_load <= '1';
---                    when S8 =>              -- resetto il contatore a DIM
---                        o_en <= '1';
---                        shift_lvl_load <= '0';
---                        mux_cont_sel <= '0';
---                    when S9 =>
---                        in_load <= '1';
---                        o_en <= '0';
---                    when S10 =>
---                        d_sel <= "10";
---                        temp_load <= '1';
---                    when S11 =>
---                        temp_load <= '0';
---                        new_value_load <= '1';
---                    when S12 =>
---                        i_we <= '1';
---                        o_we <= '1';
---                        o_en <= '1';
---                        mux_pc_sel <= '0';
---                        pc_load <= '1';
---                        new_value_load <= '0';
---                     when S13 =>
---                        i_we <= '0';
---                        o_we <= '0';
---                        o_en <= '1';
---                        mux_pc_sel <= '0';
---                        pc_load <= '0';
---                        mux_cont_sel <= '1';
---                        cont_load <= '1';
---                    when S14 =>             -- resetto tutti i segnali e alzo il segnale DONE. PC è già l'indirizzo del primo byte della prossima immagine
---                        o_en <= '0';
---                        i_we <= '0';
---                        o_we <= '0';
---                        in_load <= '0';
---                        pc_load <= '0';
---                        shift_lvl_load <= '0';
---                        pc_iniz_load <= '0';
---                        temp_load <= '0';
---                        new_value_load <= '0';
---                        cont_load <= '0';
---                        o_done <= '1';
---                    when S15 =>             -- quando si abbassa START posso riabbassare DONE
---                        o_done <= '0';
---                end case;
     end process;
-                
 end Behavioral;
