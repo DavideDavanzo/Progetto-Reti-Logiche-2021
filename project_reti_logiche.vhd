@@ -73,8 +73,8 @@ entity datapath is
         o_data : out std_logic_vector (7 downto 0); -- esce per andare in memoria
         o_address: out std_logic_vector(15 downto 0); -- indirizzo attuale
         o_dim_zero: out std_logic; -- segnale di fine calcolo dimensione
-        o_zero: out std_logic; -- =1 <==> il contatore raggiunge lo 0
-        o_done : out std_logic
+        o_zero: out std_logic--; -- =1 <==> il contatore raggiunge lo 0
+        --o_done : out std_logic
     );
 end datapath;
 
@@ -140,7 +140,11 @@ begin
                 if(mux_cont_sel = '1') then
                     counter_reg <= counter_reg - "0000000000000001";
                 elsif(mux_cont_sel = '0') then
-                    counter_reg <= dim_reg - "0000000000000001";
+                    if(d_sel = "10") then
+                        counter_reg <= dim_reg;
+                    else
+                        counter_reg <= dim_reg - "0000000000000001";
+                    end if;
                 end if;
             end if;
             
@@ -174,9 +178,9 @@ begin
                   else
                     o_dim_zero <= '0';
                   end if;
-	           end if;                
-            -- 
-            --   
+	           end if;
+	           
+	           
             elsif(d_sel = "01") then -- CASO 01
                 if(mux_compare_sel = '0') then
                     max_reg <= in_reg;
@@ -233,7 +237,8 @@ begin
             if(new_value_load = '1') then
                 if(temp_reg > "0000000011111111") then
                     new_value_reg <= "11111111";
-                else new_value_reg <= temp_reg(7 downto 0);
+                else
+                    new_value_reg <= temp_reg(7 downto 0);
                 end if;
             end if;
             
@@ -305,13 +310,13 @@ architecture Behavioral of project_reti_logiche is
             o_data : out std_logic_vector (7 downto 0); 
             o_address: out std_logic_vector(15 downto 0);
             o_dim_zero: out std_logic;
-            o_zero: out std_logic;
-            o_done : out std_logic
+            o_zero: out std_logic--;
+            --o_done : out std_logic
         );
     end component;
     
     type S is (RESET_STATE, S0, S1, S2, S3_0, S3_1, S4, S5, S6, S7, S8, 
-               S9, S10, S11, S12, S13, S14, S15, S16, S17, S18, S19, S20, S_POZZO);
+               S9, S10, S11, S11_BUFf_12, S12, S13, S13_BUFF_14, S14, S15, S16, S16_BUFF_17, S17, S18, S18_BUFF_14, S19, S20, S_POZZO);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -361,8 +366,8 @@ begin
         o_data,
         o_address,
         o_dim_zero,
-        o_zero,
-        o_done
+        o_zero--,
+        --o_done
     );
 
     process(i_clk, i_rst)
@@ -427,29 +432,49 @@ begin
             when S10 =>
                 next_state <= S11;
             when S11 =>
+                next_state <= S11_BUFF_12;
+            when S11_BUFF_12 =>
                 next_state <= S12;
             when S12 =>
                 next_state <= S13;
+--            when S13 =>
+--                if o_zero = '0' then
+--                    next_state <= S14;
+--                elsif o_zero = '1' then
+--                    next_state <= S19;
+--                end if;
             when S13 =>
                 if o_zero = '0' then
-                    next_state <= S14;
+                    next_state <= S13_BUFF_14;
                 elsif o_zero = '1' then
                     next_state <= S19;
                 end if;
+            when S13_BUFF_14 =>
+                next_state <= S14;
             when S14 =>
                 next_state <= S15;
             when S15 =>
                 next_state <= S16;
             when S16 =>
+                next_state <= S16_BUFF_17;
+            when S16_BUFF_17 =>
                 next_state <= S17;
             when S17 =>
                 next_state <= S18;
+--            when S18 =>
+--                if o_zero = '0' then
+--                    next_state <= S14;
+--                elsif o_zero = '1' then
+--                    next_state <= S19;
+--                end if;
             when S18 =>
                 if o_zero = '0' then
-                    next_state <= S14;
+                    next_state <= S18_BUFF_14;
                 elsif o_zero = '1' then
                     next_state <= S19;
                 end if;
+            when S18_BUFF_14 =>
+                next_state <= S14;
             when S19 =>
                 if i_start = '0' then
                     next_state <= S20;
@@ -582,17 +607,23 @@ begin
                         in_load <= '1';
                     when S11 =>
                         d_sel <= "10";
+                    when S11_BUFF_12 =>
+                        d_sel <= "10";
                         temp_load <= '1';
                     when S12 =>
+                        i_we <= '1';
                         d_sel <= "10";
                         new_value_load <= '1';
                     when S13 =>
                         d_sel <= "10";
                         o_en <= '1';
-                        i_we <= '1';
                         o_we <= '1';
                         mux_pc_sel <= '0';
                         pc_load <= '1';
+                        mux_cont_sel <= '0';
+                        cont_load <= '1';
+                    when S13_BUFF_14 =>
+                        d_sel <= "10";
                     when S14 =>
                         d_sel <= "10";
                         o_en <= '1';
@@ -603,18 +634,22 @@ begin
                         in_load <= '1';
                     when S16 =>
                         d_sel <= "10";
+                    when S16_BUFF_17 =>
+                        d_sel <= "10";
                         temp_load <= '1';
                     when S17 =>
+                        i_we <= '1';                       
                         d_sel <= "10";
                         new_value_load <= '1';
                     when S18 =>
                         d_sel <= "10";
                         o_en <= '1';
-                        i_we <= '1';
                         o_we <= '1';
                         mux_pc_sel <= '0';
                         pc_load <= '1';
                         mux_cont_sel <= '1';
+                    when S18_BUFF_14 =>
+                        d_sel <= "10";
                     when S19 =>
                         o_done <= '1';
                     when S20 =>
