@@ -315,8 +315,8 @@ architecture Behavioral of project_reti_logiche is
         );
     end component;
     
-    type S is (RESET_STATE, S0, S1, S2, S3_0, S3_1, S4, S5, S6, S7, S8, 
-               S9, S10, S11, S11_BUFf_12, S12, S13, S13_BUFF_14, S14, S15, S16, S16_BUFF_17, S17, S18, S18_BUFF_14, S19, S20, S_POZZO);
+    type S is (RESET_STATE, S0, S1, S2, S3_0, S3_1, S4, S5, S5_1, S6_1, S6_2, S6, S7, S8, 
+               S9, S10, S11, S11_BUFF_12, S12, S13, S13_BUFF_14, S14, S15, S16, S16_BUFF_17, S17, S18, S18_BUFF_14, S19, S20, S_POZZO);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -407,22 +407,28 @@ begin
                 next_state <= S4;  
             when S4 =>
                 if o_zero = '1' then    -- caso DIM=1
-                    next_state <= S_POZZO;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>1
+                    next_state <= S5_1;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>1
                 else                    -- caso DIM>1
                     next_state <= S5;
                 end if;
             when S5 =>
                 if o_zero = '1' then    -- caso DIM=2
-                    next_state <= S_POZZO;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>2
+                    next_state <= S6_1;  -- A CASO LO STO USANDO COME POZZO TANTO NEL TB DIM>2
                 else
                     next_state <= S6;
                 end if;
+            when S5_1 =>
+                next_state <= S6_2;
             when S6 =>
                 if o_zero = '0' then
                     next_state <= S6;
                 else
                     next_state <= S7;
                 end if;
+            when S6_1 =>
+                next_state <= S8;
+            when s6_2 =>
+                next_state <= S9;
             when S7 =>
                 next_state <= S8;
             when S8 =>
@@ -537,7 +543,6 @@ begin
                         dim_load <= '0';
                         d_sel <= "00";
                     when S3_0 =>
-                    -- carico il valore finale DIM=M(0)*M(1)
                         mux_dim_sel <= '1';
                         pc_load <= '0';
                         pc_iniz_load <= '0';
@@ -547,7 +552,6 @@ begin
                         o_en <= '0';
                         d_sel <= "00";
                     when S3_1 =>
-                    -- carico il valore finale DIM=M(0)*M(1)
                         mux_dim_sel <= '1';
                         pc_load <= '0';
                         pc_iniz_load <= '0';
@@ -557,7 +561,6 @@ begin
                         o_en <= '0';
                         d_sel <= "00";
                     when S4 =>
-                    -- leggo M(2), carico CONT=DIM-1, PC++
                         dim_load <= '0';
                         dim_zero_load <= '0';
                         mux_cont_sel <= '0';
@@ -574,6 +577,10 @@ begin
                         in_load <= '1';
                         pc_load <= '1';
                         mux_compare_sel <= '0';
+                    when S5_1 =>
+                        in_load <= '1';
+                        mux_pc_sel <= '1';
+                        pc_load <= '1';     --PC=PC0
                     when S6 =>
                     -- ciclo finchè non si alza zero (CONT-1==0)
                     -- carico M(3) o in generale il valore letto il ciclo prima, PC++, CONT--
@@ -585,20 +592,29 @@ begin
                         pc_load <= '1';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
+                    when S6_1 =>
+                        d_sel <= "01";
+                        in_load <= '1';
+                        mux_pc_sel <= '1';
+                        pc_load <= '1';     --PC=PC0
+                    when S6_2 =>
+                        d_sel <= "01";
+                        mux_pc_sel <= '1';
+                        pc_load <= '1';
                     when S7 =>
                     --
                         o_en <= '0';
                         in_load <= '1';
-                        d_sel <= "01";
-                        mux_pc_sel <= '1';
-                        pc_load <= '1';     --PC=PC0
+                        d_sel <= "01";          
                         cont_load <= '0';
                         mux_compare_sel <= '1';
+                        mux_pc_sel <= '1';
+                        pc_load <= '1';     --PC=PC0
                     when S8 =>
                         d_sel <= "01";
                         mux_compare_sel <= '1';
                         o_en <= '0';
-                        in_load <= '0';
+                        in_load <= '0'; 
                     when S9 =>
                         delta_load <= '1';
                         o_en <= '1';
