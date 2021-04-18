@@ -50,6 +50,7 @@ entity datapath is
         in_load: in std_logic; -- registro in entrata
         d_sel: in std_logic_vector (1 downto 0); -- instradamento ingresso
         i_we: in std_logic;
+        i_done : in std_logic;
         -- modulo dimensione
         mux_dim_sel: in std_logic; -- seleziona il secondo operando da moltiplicare
         dim_load: in std_logic; -- load del registro dim
@@ -74,7 +75,6 @@ entity datapath is
         o_address: out std_logic_vector(15 downto 0); -- indirizzo attuale
         o_dim_zero: out std_logic; -- segnale di fine calcolo dimensione
         o_zero: out std_logic--; -- =1 <==> il contatore raggiunge lo 0
-        --o_done : out std_logic
     );
 end datapath;
 
@@ -99,7 +99,7 @@ begin
     process(i_clk, i_res)
     begin
     
-        if(i_res = '1') then
+        if(i_res = '1' or i_done = '1') then
             
             in_reg <= eight_bit_zero;
             pc_reg <= sixteen_bit_zero;
@@ -207,9 +207,7 @@ begin
             --shift level
             if(delta_load = '1') then
                 delta_reg <= max_reg - min_reg;
-            end if;
-            
-            
+            end if;                     
  
             if(shift_lvl_load = '1') then
                 if(delta_reg = 0) then
@@ -287,6 +285,7 @@ architecture Behavioral of project_reti_logiche is
             in_load: in std_logic;
             d_sel: in std_logic_vector (1 downto 0);
             i_we: in std_logic;
+            i_done: in std_logic;
             -- modulo dimensione
             mux_dim_sel: in std_logic;
             dim_load: in std_logic;
@@ -315,7 +314,7 @@ architecture Behavioral of project_reti_logiche is
         );
     end component;
     
-    type S is (RESET_STATE, S0, S1, S2, S3_0, S3_1, S4, S5, S5_1, S6_1, S6_2, S6, S7, S8, 
+    type S is (RESET_STATE, S0, S0_BUFF_1, S1, S2, S3_0, S3_1, S4, S5, S5_1, S6_1, S6_2, S6, S7, S8, 
                S9, S10, S11, S11_BUFF_12, S12, S13, S13_BUFF_14, S14, S15, S16, S16_BUFF_17, S17, S18, S18_BUFF_14, S19, S20, S_POZZO);
     
     signal current_state: S; -- stato corrente
@@ -323,6 +322,7 @@ architecture Behavioral of project_reti_logiche is
     signal in_load: std_logic;
     signal d_sel: std_logic_vector(1 downto 0);
     signal i_we: std_logic;
+    signal i_done: std_logic;
     signal mux_dim_sel: std_logic;
     signal dim_load: std_logic;
     signal dim_zero_load: std_logic;
@@ -349,6 +349,7 @@ begin
         in_load,
         d_sel,
         i_we,
+        i_done,     
         mux_dim_sel,
         dim_load,
         dim_zero_load,
@@ -366,8 +367,7 @@ begin
         o_data,
         o_address,
         o_dim_zero,
-        o_zero--,
-        --o_done
+        o_zero
     );
 
     process(i_clk, i_rst)
@@ -388,6 +388,8 @@ begin
                     next_state <= S0;
                 end if;
             when S0 =>
+                next_state <= S0_BUFF_1;
+            when S0_BUFF_1 =>
                 next_state <= S1;
             when S1 =>
                 next_state <= S2;
@@ -515,6 +517,7 @@ begin
                 i_we <= '0';    -- mandato al datapath
                 o_we <= '0';    -- mandato alla memoria
                 o_done <= '0';
+                i_done <= '0';
                 
                 case current_state is
                     when RESET_STATE =>     -- non cambio nulla, tutto è già stato inizializzato
@@ -523,13 +526,14 @@ begin
                         o_en <= '1';
                         mux_pc_sel <= '0';
                         pc_load <= '1';     -- PC=1, ADDR=0
+                    when S0_BUFF_1 =>
+                        mux_pc_sel <= '0';
+                        pc_load <= '1';     -- PC=2, ADDR=1
+                        in_load <= '1';
                     when S1 =>
                     -- carico M(0), leggo M(1), PC++
                     -- carico DIM=1 temporaneamente
                         o_en <= '1';
-                        mux_pc_sel <= '0';
-                        pc_load <= '1';     -- PC=2, ADDR=1
-                        in_load <= '1';
                     when S2 =>
                     -- non leggo da memoria, carico M(1), carico PC0=PC
                     -- carico DIM=M(0) temporaneamente
@@ -668,6 +672,7 @@ begin
                         d_sel <= "10";
                     when S19 =>
                         o_done <= '1';
+                        i_done <= '1';
                     when S20 =>
                     when S_POZZO =>
                 end case;
