@@ -95,7 +95,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             in_reg <= eight_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(in_load = '1') then
                 in_reg <= i_data;
             end if;
@@ -107,7 +107,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             pc_reg <= sixteen_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(pc_load = '1') then
                 if(mux_pc_sel = '1') then
                     pc_reg <= pc_iniz_reg;
@@ -123,7 +123,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             pc_iniz_reg <= sixteen_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(pc_iniz_load = '1') then
                 pc_iniz_reg <= pc_reg;
             end if;
@@ -135,7 +135,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             dim_reg <= sixteen_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(dim_load ='1') then
                 dim_reg <= (eight_bit_zero & in_reg) + dim_reg;
 		    end if;
@@ -147,7 +147,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             dim_zero_reg <= eight_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(dim_zero_load = '1') then
                 if(mux_dim_sel = '0') then
                     dim_zero_reg <= in_reg - "00000001";
@@ -163,7 +163,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             counter_reg <= sixteen_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(cont_load = '1') then
                 if(mux_cont_sel = '1') then
                     counter_reg <= counter_reg - "0000000000000001";
@@ -180,7 +180,7 @@ begin
         if(i_res = '1' or i_done = '1') then
             max_reg <= eight_bit_zero;
             min_reg <= "11111111";
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(compare = '1') then
                 if(in_reg < min_reg) then
                     min_reg <= in_reg;
@@ -197,7 +197,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             shift_lvl <= "0000";
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(delta = 0) then
                 shift_lvl <= "1000" - "0000";
             elsif(delta = "00000001" or delta = "00000010") then
@@ -225,7 +225,7 @@ begin
     begin
         if(i_res = '1' or i_done = '1') then
             new_value_reg <= eight_bit_zero;
-        elsif i_clk'event and i_clk = '1' then
+        elsif rising_edge(i_clk) then
             if(new_value_load = '1') then
                 if(temp > "0000000011111111") then
                     new_value_reg <= "11111111";
@@ -307,7 +307,20 @@ architecture Behavioral of project_reti_logiche is
         );
     end component;
     
-    type S is (RESET_STATE, S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S_WAIT);
+    type S is ( RESET_STATE,
+                FETCH_NUM_COLS,
+                FETCH_NUM_ROWS,
+                INIT_DIM_COUNTER,
+                COMPUTE_DIM,
+                FETCH_FIRST_PIXEL,
+                FIND_MAX_MIN,
+                COMPUTE_SHIFT_LEVEL,
+                RESTART_FROM_FIRST_PIXEL,
+                LOAD_OLD_VALUE,
+                COMPUTE_NEW_VALUE,
+                WRITE_NEW_VALUE,
+                DONE,
+                WAIT_START);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -369,50 +382,50 @@ begin
         case current_state is
             when RESET_STATE =>
                 if (i_start = '1') then
-                    next_state <= S0;
+                    next_state <= FETCH_NUM_COLS;
                 end if;
-            when S0 =>
-                next_state <= S1;
-            when S1 =>
-                next_state <= S2;
-            when S2 =>
-                next_state <= S3;
-            when S3 =>
+            when FETCH_NUM_COLS =>
+                next_state <= FETCH_NUM_ROWS;
+            when FETCH_NUM_ROWS =>
+                next_state <= INIT_DIM_COUNTER;
+            when INIT_DIM_COUNTER =>
+                next_state <= COMPUTE_DIM;
+            when COMPUTE_DIM =>
                 if o_dim_zero = '1' then
-                    next_state <= S4;
+                    next_state <= FETCH_FIRST_PIXEL;
                 end if;
-            when S4 =>
-                next_state <= S5;
-            when S5 =>
+            when FETCH_FIRST_PIXEL =>
+                next_state <= FIND_MAX_MIN;
+            when FIND_MAX_MIN =>
                 if o_zero = '1' then
-                    next_state <= S6;
+                    next_state <= COMPUTE_SHIFT_LEVEL;
                 end if;
-            when S6 =>
-                next_state <= S7;
-            when S7 =>
-                next_state <= S8;
-            when S8 =>
-                next_state <= S9;
-            when S9 =>
-                next_state <= S10;
-            when S10 =>
+            when COMPUTE_SHIFT_LEVEL =>
+                next_state <= RESTART_FROM_FIRST_PIXEL;
+            when RESTART_FROM_FIRST_PIXEL =>
+                next_state <= LOAD_OLD_VALUE;
+            when LOAD_OLD_VALUE =>
+                next_state <= COMPUTE_NEW_VALUE;
+            when COMPUTE_NEW_VALUE =>
+                next_state <= WRITE_NEW_VALUE;
+            when WRITE_NEW_VALUE =>
                 if o_zero = '1' then
-                    next_state <= S11;
+                    next_state <= DONE;
                 else
-                    next_state <= S7;
+                    next_state <= RESTART_FROM_FIRST_PIXEL;
                 end if;
-            when S11 =>
+            when DONE =>
                 if i_start = '0' then
-                    next_state <= S_WAIT;
+                    next_state <= WAIT_START;
                 end if;
-            when S_WAIT =>
+            when WAIT_START =>
                 if i_start = '1' then
-                    next_state <= S0;
+                    next_state <= FETCH_NUM_COLS;
                 end if;
         end case;
     end process;
             
-    process(current_state)      -- gestisce i segnali degli stati della fsm
+    process(current_state)
             begin
                 -- inizializzazione dei segnali
                 pc_load <= '0';
@@ -429,38 +442,38 @@ begin
                 o_en <= '0';    -- mandato alla memoria
                 i_we <= '0';    -- mandato al datapath
                 o_we <= '0';    -- mandato alla memoria
-                o_done <= '0';
-                i_done <= '0';
+                o_done <= '0';    -- mandato alla memoria
+                i_done <= '0';    -- mandato al datapath
                 
                 case current_state is
                     when RESET_STATE =>
-                    when S0 =>
+                    when FETCH_NUM_COLS =>
                     -- leggo M(0), PC++
                         o_en <= '1';
                         pc_load <= '1';
-                    when S1 =>
+                    when FETCH_NUM_ROWS =>
                     -- carico M(0), leggo M(1), PC++
                         o_en <= '1';
                         in_load <= '1';
                         pc_load <= '1';
-                    when S2 =>
+                    when INIT_DIM_COUNTER =>
                     -- non leggo da memoria, carico M(1), carico PC0=PC
                     -- carico DIM_ZERO=M(0)
                         in_load <= '1';
                         pc_iniz_load <= '1';
                         dim_zero_load <= '1';
-                    when S3 =>
+                    when COMPUTE_DIM =>
                         o_en <= '1';
                         mux_dim_sel <= '1';
                         dim_load <= '1';
                         dim_zero_load <= '1';
-                    when S4 =>
+                    when FETCH_FIRST_PIXEL =>
                     -- leggo M(2), carico CONT=DIM
                         cont_load <= '1';
                         o_en <= '1';
                         in_load <= '1';
                         pc_load <= '1';
-                    when S5 =>
+                    when FIND_MAX_MIN =>
                     -- carico i valori e confronto per trovare max e min
                         compare <= '1';
                         o_en <= '1';
@@ -468,32 +481,33 @@ begin
                         pc_load <= '1';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S6 =>
+                    when COMPUTE_SHIFT_LEVEL =>
                     -- calcolo delta, carico PC=PC_iniz
                         mux_pc_sel <= '1';
                         pc_load <= '1';
                         cont_load <= '1';
-                    when S7 =>
+                    when RESTART_FROM_FIRST_PIXEL =>
                     -- ricomincio lettura da M(2) e resetto COUNTER_REG=DIM
                         o_en <= '1';
                         mux_cont_sel <= '1';
                         cont_load <= '1';
-                    when S8 =>
+                    when LOAD_OLD_VALUE =>
                     -- carico pixel value
                         in_load <= '1';
-                    when S9 =>
+                    when COMPUTE_NEW_VALUE =>
                     -- carico new value
                         new_value_load <= '1';
-                    when S10 =>
+                    when WRITE_NEW_VALUE =>
                     -- scrivo in memoria NEW_VALUE_REG, PC++
                         o_en <= '1';
                         o_we <= '1';
                         i_we <= '1';
                         pc_load <= '1';
-                    when S11 =>
+                    when DONE =>
                     -- computazione finita
                         o_done <= '1';
-                    when S_WAIT =>
+                        i_done <= '1';
+                    when WAIT_START =>
                 end case;
     end process;
 end Behavioral;
