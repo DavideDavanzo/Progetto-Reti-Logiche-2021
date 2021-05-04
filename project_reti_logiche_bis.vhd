@@ -89,7 +89,7 @@ architecture Behavioral of datapath is
     signal new_value_reg: std_logic_vector(7 downto 0);
     signal sign_extension: std_logic_vector(15 downto 0);
     
-begin    
+begin
     --gestione in_reg
     process(i_clk, i_res)
     begin
@@ -130,7 +130,7 @@ begin
         end if;
     end process;
     
-    --gestione dim reg
+    --gestione dim_reg
     process(i_clk, i_res)
     begin
         if(i_res = '1' or i_done = '1') then
@@ -238,10 +238,10 @@ begin
     
     o_zero <= '1' when counter_reg = 0 else '0';
     
-    o_dim_zero <= '1' when dim_zero_reg = 0
-                  else '0';
+    o_dim_zero <= '1' when dim_zero_reg = 0 else '0';
+    -- o_dim_zero <= '1' when (dim_zero_reg = 0 or dim_zero_reg = "11111111") else '0';
                   
-    o_address <= pc_reg + dim_reg when (i_we = '1') else pc_reg;
+    o_address <= pc_reg + dim_reg when i_we = '1' else pc_reg;
     
     o_data <= new_value_reg;
     
@@ -249,7 +249,7 @@ begin
     
     sign_extension <= "00000000" & (in_reg - min_reg);
     
-    temp <= std_logic_vector( shift_left( unsigned(sign_extension), to_integer(unsigned(shift_lvl))));
+    temp <= std_logic_vector( shift_left( unsigned(sign_extension), to_integer(unsigned(shift_lvl)) ) );
     
 end Behavioral;
 
@@ -319,8 +319,7 @@ architecture Behavioral of project_reti_logiche is
                 LOAD_OLD_VALUE,
                 COMPUTE_NEW_VALUE,
                 WRITE_NEW_VALUE,
-                DONE,
-                WAIT_START);
+                DONE);
     
     signal current_state: S; -- stato corrente
     signal next_state: S; -- stato successivo
@@ -416,18 +415,14 @@ begin
                 end if;
             when DONE =>
                 if i_start = '0' then
-                    next_state <= WAIT_START;
-                end if;
-            when WAIT_START =>
-                if i_start = '1' then
-                    next_state <= FETCH_NUM_COLS;
+                    next_state <= RESET_STATE;
                 end if;
         end case;
     end process;
             
     process(current_state)
             begin
-                -- inizializzazione dei segnali
+            -- inizializzazione dei segnali
                 pc_load <= '0';
                 pc_iniz_load <= '0';
                 in_load <= '0';
@@ -507,7 +502,6 @@ begin
                     -- computazione finita
                         o_done <= '1';
                         i_done <= '1';
-                    when WAIT_START =>
                 end case;
     end process;
 end Behavioral;
